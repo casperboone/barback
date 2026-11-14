@@ -178,7 +178,12 @@ export function HistoryChart({
       value == null ? [] : [`${x(index)},${y(value)}`],
     )
     .join(" ");
-  const areaPoints = `${x(0)},${y(0)} ${linePoints} ${x(buckets.length - 1)},${y(0)}`;
+  // The wash under the line goes down to zero for amounts and to the bottom
+  // of the axis for a price, between the first and last period with a value.
+  const firstIndex = values.findIndex((value) => value != null);
+  const lastIndex = values.findLastIndex((value) => value != null);
+  const base = measure === "price" ? low : 0;
+  const areaPoints = `${x(firstIndex)},${y(base)} ${linePoints} ${x(lastIndex)},${y(base)}`;
   const dots = known.length <= MAX_DOTS;
 
   return (
@@ -277,13 +282,10 @@ export function HistoryChart({
               preserveAspectRatio="none"
               aria-hidden
             >
-              {/* A wash down to zero only means something for amounts. */}
-              {measure === "quantity" && (
-                <polygon
-                  points={areaPoints}
-                  className="fill-emerald-500/10 dark:fill-emerald-400/10"
-                />
-              )}
+              <polygon
+                points={areaPoints}
+                className="fill-emerald-500/10 dark:fill-emerald-400/10"
+              />
               <polyline
                 points={linePoints}
                 fill="none"
