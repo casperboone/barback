@@ -17,12 +17,8 @@ import {
   searchCatalogForPicker,
   type PickerProduct,
 } from "@/lib/assortment/queries";
-import {
-  addManyToSupplierCart,
-  addToSupplierCart,
-} from "@/lib/supplier/cart-service";
+import { addProductsToSupplierCart } from "@/lib/supplier/cart-service";
 import { revalidateItemScreens } from "@/lib/items/revalidate";
-import { logger } from "@/lib/logger";
 import { deleteItemImage, saveItemImageFromUrl } from "@/lib/images/store";
 import {
   getCurrentDraftId,
@@ -453,13 +449,7 @@ export async function sendOrderToCart(options: {
     const failed: CartSubmitResult["failed"] = [];
     const sentIds = new Set<number>();
     const errors = new Map<number, string>();
-    let cart: CartSubmitResult["cart"];
 
-    // One request for the whole order instead of one per product. The
-    // supplier refuses the batch as a whole over a single bad line, so
-    // whatever does not come back accepted is retried on its own, which also
-    // tells us which product was the problem.
-    //
     // Two lines can be the same product (Queer Beer is on the list twice), and
     // the cart has one amount per product: the portal's own page treats a
     // repeat as an edit. So the cart gets each product once, with the total.
@@ -470,43 +460,16 @@ export async function sendOrderToCart(options: {
         line,
       ]);
     }
-    const totalOf = (group: typeof lines) =>
-      group.reduce((sum, line) => sum + line.quantity, 0);
-
-    const bulk = [...products.values()].filter(
-      ([line]) => line.supplierId != null
+    const outcome = await addProductsToSupplierCart(
+      [...products].map(([itemNo, group]) => ({
+        itemNo,
+        quantity: group.reduce((sum, line) => sum + line.quantity, 0),
+      }))
     );
-    let accepted = new Set<string>();
-    if (bulk.length > 0) {
-      try {
-        const result = await addManyToSupplierCart(
-          bulk.map((group) => ({
-            itemNo: group[0].itemNo!,
-            supplierId: group[0].supplierId!,
-            quantity: totalOf(group),
-            unitOfMeasure: group[0].unitOfMeasure,
-          }))
-        );
-        accepted = new Set(result.added);
-        if (result.cart.totalItems != null) cart = result.cart;
-      } catch (error) {
-        logger.warn(
-          `Bulk cart add failed, falling back to one call per line: ${
-            error instanceof Error ? error.message : error
-          }`
-        );
-      }
-    }
+    const cart: CartSubmitResult["cart"] = outcome.cart;
 
     for (const [itemNo, group] of products) {
-      let problem: string | null = null;
-      if (!accepted.has(itemNo)) {
-        try {
-          cart = await addToSupplierCart(itemNo, totalOf(group));
-        } catch (error) {
-          problem = error instanceof Error ? error.message : "Unknown error";
-        }
-      }
+      const problem = outcome.failed.get(itemNo) ?? null;
       for (const line of group) {
         const row = { name: line.name, itemNo, quantity: line.quantity };
         if (problem) {

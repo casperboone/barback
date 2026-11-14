@@ -53,7 +53,9 @@ export const supplierProducts = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     // Item number ("No") in the supplier's webshop. This is our stable key.
     itemNo: text("item_no").notNull().unique(),
-    // Internal id in the supplier's webshop, used by e.g. its assortment actions.
+    // Internal id in the supplier's webshop. Not stable: the portal renumbers
+    // its products, so after a few days most of these point at another one.
+    // Use the item number to talk to the portal.
     supplierId: integer("supplier_id"),
     description: text("description").notNull(),
     description2: text("description2"),

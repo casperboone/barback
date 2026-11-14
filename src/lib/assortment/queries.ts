@@ -22,7 +22,7 @@ export type AssortmentRow = {
   categoryId: number;
   supplierProductId: number | null;
   itemNo: string | null;
-  // The portal's own product id, which its bulk cart endpoint keys on.
+  // The portal's own product id. It gets renumbered: never key on it.
   supplierId: number | null;
   supplierDescription: string | null;
   unitOfMeasure: string | null;
