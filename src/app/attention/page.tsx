@@ -33,7 +33,7 @@ export const dynamic = "force-dynamic";
 // maxDuration applies per page.
 export const maxDuration = 60;
 
-export const metadata = { title: "Needs attention · Inventory Manager" };
+export const metadata = { title: "Needs attention" };
 
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${formatNumber(count)} ${count === 1 ? one : many}`;
