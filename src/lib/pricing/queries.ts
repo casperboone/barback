@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, min } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assortmentCategories,
@@ -152,6 +152,8 @@ export type PricingOverview = {
   categories: PricingCategory[];
   settings: PricingSettings;
   reference: { id: number; name: string; alcoholPrice: number | null } | null;
+  // The first recorded sale price change; prices can't be compared before it.
+  historyStart: Date | null;
 };
 
 // Calendar years as the invoice dates are stored, like purchase history.
@@ -258,7 +260,7 @@ function isCheapAlcohol(
 }
 
 export async function getPricingOverview(): Promise<PricingOverview> {
-  const [items, categories, settings] = await Promise.all([
+  const [items, categories, settings, historyStart] = await Promise.all([
     selectPricingItems()
       .where(ACTIVE_PRODUCT)
       .orderBy(
@@ -268,6 +270,7 @@ export async function getPricingOverview(): Promise<PricingOverview> {
       ),
     getPricingCategories(),
     getPricingSettings(),
+    getSalePriceHistoryStart(),
   ]);
 
   const years = boughtYears();
@@ -305,7 +308,7 @@ export async function getPricingOverview(): Promise<PricingOverview> {
     }
   }
 
-  return { rows, years, categories, settings, reference };
+  return { rows, years, categories, settings, reference, historyStart };
 }
 
 export type PricingItem = {
@@ -378,4 +381,32 @@ export async function getSalePriceHistory(itemId: number) {
     .from(salePriceChanges)
     .where(eq(salePriceChanges.itemId, itemId))
     .orderBy(desc(salePriceChanges.createdAt), desc(salePriceChanges.id));
+}
+
+// The sale price each item had when `since` came, for items whose price has
+// changed after it: the old price of its first change from then on. Items
+// missing from the map still have the price they had then.
+export async function getSalePricesAt(since: Date) {
+  const changes = await db
+    .select({
+      itemId: salePriceChanges.itemId,
+      oldPrice: salePriceChanges.oldPrice,
+    })
+    .from(salePriceChanges)
+    .where(gte(salePriceChanges.createdAt, since))
+    .orderBy(asc(salePriceChanges.createdAt), asc(salePriceChanges.id));
+
+  const prices = new Map<number, number | null>();
+  for (const change of changes) {
+    if (!prices.has(change.itemId)) prices.set(change.itemId, change.oldPrice);
+  }
+  return prices;
+}
+
+// When the price history begins; before it, there's nothing to compare to.
+export async function getSalePriceHistoryStart() {
+  const [row] = await db
+    .select({ first: min(salePriceChanges.createdAt) })
+    .from(salePriceChanges);
+  return row?.first ?? null;
 }

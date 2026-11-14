@@ -39,6 +39,7 @@ import type { PricingOverview, PricingRow } from "@/lib/pricing/queries";
 import { priceToneStyle, signalChips } from "@/lib/pricing/signals";
 import { cn } from "@/lib/utils";
 import { setSalePrice } from "./actions";
+import { ExportPdfButton } from "./export-pdf-button";
 import { ItemDialog, type ItemDialogState } from "@/app/items/item-dialog";
 
 type View = "all" | "attention" | "notForSale";
@@ -140,10 +141,18 @@ export function PricingTable({
             Prices include VAT.
           </p>
         </div>
-        <Button onClick={() => setDialog({ mode: "create", otherSupplier: true })}>
-          <PlusIcon />
-          Other supplier item
-        </Button>
+        <div className="flex gap-2">
+          <ExportPdfButton
+            specials={specials}
+            historyStart={overview.historyStart}
+          />
+          <Button
+            onClick={() => setDialog({ mode: "create", otherSupplier: true })}
+          >
+            <PlusIcon />
+            Other supplier item
+          </Button>
+        </div>
       </div>
 
       <div className="sticky top-0 z-20 -mx-4 mb-2 space-y-2 bg-muted/30 px-4 pt-1 pb-2 backdrop-blur">
