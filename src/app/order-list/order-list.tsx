@@ -39,6 +39,12 @@ import { DiscountBadge } from "@/components/discount-badge";
 import { ItemImage } from "@/components/item-image";
 import { OpenItemLink } from "@/components/item-links";
 import { ViewTabs } from "@/components/section-tabs";
+import {
+  matchesSpecials,
+  SpecialBadge,
+  SpecialsFilterTabs,
+  type SpecialsFilter,
+} from "@/components/special-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +112,7 @@ export function OrderList({
   );
   const [reordering, setReordering] = useState(false);
   const [search, setSearch] = useState("");
+  const [specials, setSpecials] = useState<SpecialsFilter>("any");
   const [dialog, setDialog] = useState<ItemDialogState | null>(
     initialItem && { mode: "edit", itemId: initialItem.id },
   );
@@ -303,6 +310,9 @@ export function OrderList({
       ...category,
       items: category.items.filter((item) => {
         if (reordering) return true;
+        // Notes are never specials.
+        const special = item.kind === "product" && item.special;
+        if (!matchesSpecials(special, specials)) return false;
         if (view === "order") {
           return item.kind === "product" && quantityOf(item) > 0;
         }
@@ -319,6 +329,15 @@ export function OrderList({
   const products = categories.flatMap((category) =>
     category.items.filter((item) => item.kind === "product"),
   );
+  // In the list on screen, so the count matches what the filter shows.
+  const specialCount = source
+    .flatMap((category) => category.items)
+    .filter(
+      (item) =>
+        item.kind === "product" &&
+        item.special &&
+        (view !== "order" || quantityOf(item) > 0),
+    ).length;
   const orderLines = products.filter((item) => quantityOf(item) > 0);
   const liveOneOffs = oneOffs.filter((line) => oneOffAmountOf(line) > 0);
   const lineCount = orderLines.length + liveOneOffs.length;
@@ -338,7 +357,10 @@ export function OrderList({
       line.itemNo?.includes(term),
   );
   const showOneOffs =
-    !reordering && view !== "archived" && visibleOneOffs.length > 0;
+    !reordering &&
+    specials !== "only" &&
+    view !== "archived" &&
+    visibleOneOffs.length > 0;
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -444,19 +466,26 @@ export function OrderList({
               One-off
             </Button>
           </div>
-          <ViewTabs
-            label="Which items"
-            current={view}
-            onSelect={setView}
-            views={[
-              { value: "all", label: "All" },
-              {
-                value: "order",
-                label: lineCount > 0 ? `To order (${lineCount})` : "To order",
-              },
-              { value: "archived", label: "Archived" },
-            ]}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewTabs
+              label="Which items"
+              current={view}
+              onSelect={setView}
+              views={[
+                { value: "all", label: "All" },
+                {
+                  value: "order",
+                  label: lineCount > 0 ? `To order (${lineCount})` : "To order",
+                },
+                { value: "archived", label: "Archived" },
+              ]}
+            />
+            <SpecialsFilterTabs
+              current={specials}
+              count={specialCount}
+              onSelect={setSpecials}
+            />
+          </div>
         </div>
       )}
 
@@ -480,11 +509,17 @@ export function OrderList({
 
       {visible.length === 0 && !showOneOffs && (
         <p className="rounded-lg border bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-          {view === "order"
-            ? "Nothing to order yet."
-            : view === "archived"
-              ? "No archived items."
-              : "No items found."}
+          {specials === "only"
+            ? view === "order"
+              ? "No specials to order."
+              : view === "archived"
+                ? "No archived specials."
+                : "No specials found."
+            : view === "order"
+              ? "Nothing to order yet."
+              : view === "archived"
+                ? "No archived items."
+                : "No items found."}
         </p>
       )}
 
@@ -776,6 +811,9 @@ function ItemRow({
           className="relative block w-full text-left"
         >
           <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            {item.special && (
+              <SpecialBadge className="h-auto px-1 py-0 text-[10px]" />
+            )}
             {item.unitOfMeasure && <span>{item.unitOfMeasure}</span>}
             {item.unitPrice != null && <span>{formatPrice(item.unitPrice)}</span>}
             {item.discount && item.discount.kind !== "unknown" && (

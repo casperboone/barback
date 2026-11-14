@@ -16,6 +16,8 @@ export type AssortmentRow = {
   name: string;
   target: number | null;
   note: string | null;
+  // Only here for a limited time.
+  special: boolean;
   archivedAt: Date | null;
   categoryId: number;
   supplierProductId: number | null;
@@ -47,6 +49,7 @@ async function selectItems(archived: boolean) {
       name: assortmentItems.name,
       target: assortmentItems.target,
       note: assortmentItems.note,
+      special: assortmentItems.special,
       archivedAt: assortmentItems.archivedAt,
       categoryId: assortmentItems.categoryId,
       categoryName: assortmentCategories.name,
@@ -105,6 +108,7 @@ function groupByCategory(
       name: row.name,
       target: row.target,
       note: row.note,
+      special: row.special,
       archivedAt: row.archivedAt,
       categoryId: row.categoryId,
       supplierProductId: row.supplierProductId,

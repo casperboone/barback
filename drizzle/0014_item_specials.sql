@@ -1,0 +1,1 @@
+ALTER TABLE `assortment_items` ADD `special` integer DEFAULT false NOT NULL;

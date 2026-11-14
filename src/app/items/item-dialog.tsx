@@ -186,6 +186,7 @@ function ItemForm({
   const [newCategory, setNewCategory] = useState("");
   const [target, setTarget] = useState(formatInputNumber(item?.target));
   const [note, setNote] = useState(item?.note ?? "");
+  const [special, setSpecial] = useState(item?.special ?? false);
   const [product, setProduct] = useState<PickerProduct | null>(
     item?.supplierProductId && item.itemNo
       ? {
@@ -326,6 +327,7 @@ function ItemForm({
         target: fieldValue(target, item?.target),
         supplierProductId,
         note: note.trim() || null,
+        special,
         pricingCategoryId: pricingCategory ? pricingCategory.id : null,
         notForSale,
         unitVolume: fieldValue(unitVolume, item?.unitVolume),
@@ -541,6 +543,14 @@ function ItemForm({
                 placeholder="e.g. rotating whisky"
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={special}
+                onCheckedChange={(checked) => setSpecial(checked === true)}
+              />
+              Special (only here for a limited time)
+            </label>
           </section>
 
           <section ref={pricingSection} className={PANEL}>

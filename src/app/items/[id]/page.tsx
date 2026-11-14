@@ -9,6 +9,7 @@ import {
 import { DiscountBadge } from "@/components/discount-badge";
 import { ItemImage } from "@/components/item-image";
 import { OpenItemLink } from "@/components/item-links";
+import { SpecialBadge } from "@/components/special-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -158,6 +159,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
                 Archived {formatDate(item.archivedAt)}
               </Badge>
             )}
+            {item.special && <SpecialBadge />}
             {item.notForSale && <Badge variant="secondary">Not for sale</Badge>}
             {!product && (
               <Badge variant="outline" className="gap-1 text-amber-700">
