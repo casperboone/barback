@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inventory Manager",
+  title: { default: "BarBack", template: "%s · BarBack" },
   description: "Supplier catalog, assortment and ordering",
 };
 

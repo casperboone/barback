@@ -31,7 +31,7 @@ export function AppHeader() {
           className="flex shrink-0 items-center gap-2 font-semibold"
         >
           <PackageIcon className="size-5" />
-          <span className="hidden sm:inline">Inventory Manager</span>
+          <span className="hidden sm:inline">BarBack</span>
         </Link>
         <nav aria-label="Main" className="-mr-4 min-w-0 text-sm">
           <ScrollRow activeKey={activeHref} className="items-center gap-1 pr-4">

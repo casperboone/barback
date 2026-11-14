@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 // get the platform maximum instead of the default.
 export const maxDuration = 60;
 
-export const metadata = { title: "Imports · Inventory Manager" };
+export const metadata = { title: "Imports" };
 
 export default async function ImportsPage() {
   const [imports, catalog, documents] = await Promise.all([

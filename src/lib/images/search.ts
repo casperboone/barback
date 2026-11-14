@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 // better than a general image search. Both are used without a key; a Google
 // Custom Search key can be added for anything they don't have.
 const USER_AGENT =
-  "InventoryManager/0.1 (self-hosted stock tool; contact via app owner)";
+  "BarBack/0.1 (self-hosted stock tool; contact via app owner)";
 const TIMEOUT_MS = 8000;
 
 export type ImageCandidate = {

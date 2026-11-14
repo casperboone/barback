@@ -18,7 +18,7 @@ export async function generateMetadata(
   props: PageProps<"/financials/invoices/[documentNo]">
 ) {
   const { documentNo } = await props.params;
-  return { title: `${decodeURIComponent(documentNo)} · Inventory Manager` };
+  return { title: decodeURIComponent(documentNo) };
 }
 
 export default async function InvoicePage(

@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 // maxDuration applies per page, so it gets the platform maximum here too.
 export const maxDuration = 60;
 
-export const metadata = { title: "Purchase History · Inventory Manager" };
+export const metadata = { title: "Purchase History" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 // The layout's invoice import runs as a server action from this page, and
 // maxDuration applies per page, so it gets the platform maximum here too.
 export const maxDuration = 60;
-export const metadata = { title: "Invoices · Inventory Manager" };
+export const metadata = { title: "Invoices" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

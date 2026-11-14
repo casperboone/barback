@@ -21,7 +21,7 @@ export async function generateMetadata(props: PageProps<"/orders/[id]">) {
   const orderId = parseId(id);
   const detail = orderId ? await getOrderDetail(orderId) : null;
   return {
-    title: `${detail ? orderLabel(detail.order) : "Order"} · Inventory Manager`,
+    title: detail ? orderLabel(detail.order) : "Order",
   };
 }
 

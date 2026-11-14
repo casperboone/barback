@@ -39,7 +39,7 @@ export async function generateMetadata(props: PageProps<"/items/[id]">) {
   const { id } = await props.params;
   const itemId = parseId(id);
   const name = itemId ? await getItemName(itemId) : null;
-  return { title: `${name ?? "Item"} · Inventory Manager` };
+  return { title: name ?? "Item" };
 }
 
 function Section({

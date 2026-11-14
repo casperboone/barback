@@ -2,7 +2,7 @@ import { getPricingOverview } from "@/lib/pricing/queries";
 import { CategoriesEditor } from "./categories-editor";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Pricing categories · Inventory Manager" };
+export const metadata = { title: "Pricing categories" };
 
 export default async function PricingCategoriesPage() {
   const { rows, categories, settings } = await getPricingOverview();
