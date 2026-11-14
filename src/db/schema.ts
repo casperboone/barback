@@ -536,6 +536,20 @@ export const orderDocumentRejections = sqliteTable(
   (t) => [primaryKey({ columns: [t.orderId, t.documentNo] })]
 );
 
+// What the attention page shows that we know about and leave as it is. The
+// fingerprint is the state it was acknowledged in: once that changes (another
+// amount, another flag, a newer import) it shows again.
+export const attentionAcknowledgements = sqliteTable(
+  "attention_acknowledgements",
+  {
+    key: text("key").primaryKey(),
+    fingerprint: text("fingerprint").notNull(),
+    acknowledgedAt: integer("acknowledged_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  }
+);
+
 export type Order = typeof orders.$inferSelect;
 export type OrderLine = typeof orderLines.$inferSelect;
 export type OrderDocument = typeof orderDocuments.$inferSelect;

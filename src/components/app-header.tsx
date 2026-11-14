@@ -14,6 +14,8 @@ const NAV = [
   { href: "/catalog", label: "Catalog" },
   { href: "/financials", label: "Rust Financials" },
   { href: "/imports", label: "Imports" },
+  // What needs doing, from all of the above.
+  { href: "/attention", label: "Attention" },
 ];
 
 export function AppHeader() {

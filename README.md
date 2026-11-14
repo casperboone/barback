@@ -19,6 +19,44 @@ numeric dates (01-11-2026), because they all go through `src/lib/format.ts`.
 `npm test` runs the unit tests. They cover pure calculations and can't reach
 the database.
 
+## Needs attention
+
+`/attention`, last in the header, gathers what is worth doing something about
+from the other screens. Each kind gets a card with a count, a line on what it
+adds up to, the worst five cases (the rest fold open underneath) and a link to
+the screen with all of them. Every case leads to where it's dealt with. Kinds
+with nothing to do are listed as checked, and with no cards at all the page
+says "All clear". The cards always come in this order, so each has its place
+on the phone:
+
+- **Payments**: open entries past their due date, plus anything due within a
+  week, like the outstanding list (amounts including VAT).
+- **Orders**: lines not delivered and orders with no invoice two weeks after
+  sending (the same as *Not delivered*), orders with documents Rust may have
+  made for them that are "very likely" or "possibly" theirs, and invoiced
+  orders with lines to tick off by hand.
+- **Pricing**: the items in the pricing screen's *Needs attention* view,
+  counted per flag, red flags first; its link opens that view
+  (`/pricing?view=attention`).
+- **Gone from Rust's catalog**: items on our list, for sale or not, whose
+  product Rust no longer lists. Each opens the item on the order list, to link
+  another product or archive it.
+- **Imports**: the catalog when it hasn't synced in 7 days, the documents in 3
+  (orders and payments are followed with them), a failed last run, or
+  documents left to read, with the import button right there.
+
+Some of it you know about and leave as it is. The tick at the end of a row
+acknowledges it: it stops counting and moves to *Acknowledged* at the bottom,
+where it can be put back. It stays there only as long as it is in the state
+you acknowledged (`attention_acknowledgements` keeps a fingerprint of it), so
+it shows again once it changes: an invoice that goes from due to late or to
+another amount, a line that is short by more, a price flag with other
+amounts, another document to link, or a newer import run. Acknowledging only
+affects this page; the other screens keep their own flags.
+
+Everything comes from the queries and signals the other screens use
+(`src/lib/attention/queries.ts`), so the counts agree with theirs.
+
 ## Order list and ordering
 
 `/order-list` is the bar's own list, grouped into categories that double as
