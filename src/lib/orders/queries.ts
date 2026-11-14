@@ -22,6 +22,7 @@ import {
   type RustDocument,
   type Suggestion,
 } from "./matching";
+import { comparePrices, type PriceDifference } from "./prices";
 
 export type LinkedDocument = OrderDocument & {
   date: Date | null;
@@ -36,6 +37,8 @@ export type TrackedOrder = {
   lines: OrderLine[];
   documents: LinkedDocument[];
   progress: OrderProgress;
+  // Lines Rust charged another price for than we ordered at.
+  priceDifferences: PriceDifference[];
 };
 
 // Rust's documents with their lines, wherever each kind is kept.
@@ -92,6 +95,9 @@ async function loadDocuments(
           itemNo: line.itemNo,
           description: line.description,
           quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          discountPercent: line.discountPercent,
+          amount: line.amount,
         })),
     });
   }
@@ -110,6 +116,9 @@ async function loadDocuments(
           itemNo: line.itemNo,
           description: line.description,
           quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          discountPercent: line.discountPercent,
+          amount: line.amount,
         })),
     });
   }
@@ -145,6 +154,7 @@ function track(
       };
     }),
     progress: computeProgress(own, found, order.sentAt, now),
+    priceDifferences: comparePrices(own, found),
   };
 }
 

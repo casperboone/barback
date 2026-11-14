@@ -85,6 +85,17 @@ something similar came instead, the order page offers it as a replacement. Free
 text and items without a catalog link can't be matched, so they're ticked off by
 hand. The logic is in `src/lib/orders/matching.ts`, with its tests next to it.
 
+A line is highlighted when Rust charged another price than we ordered at, down
+to the cent: the order page says what we ordered at, what Rust charged and the
+difference per unit and for the line, and `/orders` shows how many lines differ.
+"Ordered at" is the catalog price when the line went to the cart (sending
+refreshes it), and Rust's side is the price per unit after the line discount,
+since the catalog price is net of it too. That comes from the invoice once there
+is one, and from the Rust order before that. Free text, lines without a price,
+returns, credit notes, deposits, the fuel surcharge and corrections are left
+out, and a replaced line is only held to its own product, since we never had a
+price for the replacement. That's `src/lib/orders/prices.ts`.
+
 An order is complete once every line is delivered, replaced or accepted. "Close"
 ends the tracking of one that won't get there, like a cart that was never placed.
 
