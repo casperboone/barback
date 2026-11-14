@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   orderDocumentRejections,
@@ -18,6 +18,10 @@ import {
 } from "@/lib/orders/drafts";
 import { linkOrderDocuments, unlinkDocument } from "@/lib/orders/link";
 import { orderLabel } from "@/lib/orders/reference";
+import {
+  addProductsToSupplierCart,
+  type CartTotals,
+} from "@/lib/supplier/cart-service";
 
 function failure(error: unknown, fallback: string) {
   return {
@@ -91,6 +95,62 @@ export async function setOrderClosed(orderId: number, closed: boolean) {
 
 // Ties one of Rust's documents to an order, whether you confirmed a suggestion
 // or picked it yourself.
+export type ReaddResult = {
+  ok: true;
+  added: number;
+  failed: { name: string; error: string }[];
+  cart?: CartTotals;
+};
+
+// Puts what went to the cart for this order back in it, for when the cart at
+// Rust got emptied before it was placed. Only touches the cart: the order
+// already counts these as sent.
+export async function readdOrderToCart(
+  orderId: number
+): Promise<ReaddResult | { ok: false; error: string }> {
+  try {
+    const lines = await db
+      .select()
+      .from(orderLines)
+      .where(
+        and(
+          eq(orderLines.orderId, orderId),
+          isNotNull(orderLines.itemNo),
+          gt(orderLines.sentQuantity, 0)
+        )
+      );
+    if (lines.length === 0) {
+      return { ok: false as const, error: "Nothing on this order went to the cart." };
+    }
+
+    // The cart has one amount per product, so a product on two lines goes in
+    // once with the total.
+    const products = new Map<string, typeof lines>();
+    for (const line of lines) {
+      products.set(line.itemNo!, [...(products.get(line.itemNo!) ?? []), line]);
+    }
+    const outcome = await addProductsToSupplierCart(
+      [...products].map(([itemNo, group]) => ({
+        itemNo,
+        quantity: group.reduce((sum, line) => sum + line.sentQuantity, 0),
+      }))
+    );
+
+    const failed = [...products].flatMap(([itemNo, group]) => {
+      const error = outcome.failed.get(itemNo);
+      return error ? [{ name: group[0].name, error }] : [];
+    });
+    return {
+      ok: true as const,
+      added: products.size - failed.length,
+      failed,
+      cart: outcome.cart,
+    };
+  } catch (error) {
+    return failure(error, "Could not add the order to the cart.");
+  }
+}
+
 export async function linkDocument(
   orderId: number,
   documentNo: string,
