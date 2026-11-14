@@ -45,6 +45,7 @@ const itemSchema = z.object({
   target: optionalNumber,
   supplierProductId: z.number().int().positive().nullable(),
   note: z.string().trim().max(500).nullable(),
+  special: z.boolean(),
   pricingCategoryId: z.number().int().positive().nullable(),
   notForSale: z.boolean(),
   unitVolume: optionalNumber,

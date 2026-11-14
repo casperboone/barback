@@ -285,6 +285,8 @@ export const assortmentItems = sqliteTable(
     quantityToBuy: real("quantity_to_buy").notNull().default(0),
     position: integer("position").notNull().default(0),
     note: text("note"),
+    // Only here for a limited time, so it can be filtered out or in.
+    special: integer("special", { mode: "boolean" }).notNull().default(false),
     // Pricing, edited in the item dialog like everything above, except for the
     // sale price, which is set in the pricing table. The calculation lives in
     // src/lib/pricing/calc.ts.

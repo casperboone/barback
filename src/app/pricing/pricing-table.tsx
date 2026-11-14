@@ -14,6 +14,12 @@ import { toast } from "sonner";
 import { ItemImage } from "@/components/item-image";
 import { OpenItemLink } from "@/components/item-links";
 import { ViewTabs } from "@/components/section-tabs";
+import {
+  matchesSpecials,
+  SpecialBadge,
+  SpecialsFilterTabs,
+  type SpecialsFilter,
+} from "@/components/special-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,6 +56,11 @@ function needsAttention(row: PricingRow) {
   );
 }
 
+function inView(row: PricingRow, view: View) {
+  if (view === "notForSale") return row.notForSale;
+  return !row.notForSale && (view !== "attention" || needsAttention(row));
+}
+
 export function PricingTable({
   overview,
   initialItemId,
@@ -67,22 +78,27 @@ export function PricingTable({
       : "all",
   );
   const [search, setSearch] = useState("");
+  const [specials, setSpecials] = useState<SpecialsFilter>("any");
   const [dialog, setDialog] = useState<ItemDialogState | null>(
     initialItemId != null
       ? { mode: "edit", itemId: initialItemId, section: "pricing" }
       : null,
   );
 
-  const forSale = rows.filter((row) => !row.notForSale);
+  // Counts follow the specials filter, so they match what each view shows.
+  const counted = rows.filter((row) => matchesSpecials(row.special, specials));
+  const forSale = counted.filter((row) => !row.notForSale);
   const attentionCount = forSale.filter(needsAttention).length;
-  const notForSaleCount = rows.length - forSale.length;
+  const notForSaleCount = counted.length - forSale.length;
+  const specialCount = rows.filter(
+    (row) => row.special && inView(row, view),
+  ).length;
 
   const groups = useMemo(() => {
     const query = search.trim().toLowerCase();
     const visible = rows.filter((row) => {
-      if (view === "notForSale" ? !row.notForSale : row.notForSale)
-        return false;
-      if (view === "attention" && !needsAttention(row)) return false;
+      if (!inView(row, view)) return false;
+      if (!matchesSpecials(row.special, specials)) return false;
       if (!query) return true;
       return [row.name, row.supplierDescription, row.purchaseSource]
         .filter(Boolean)
@@ -105,7 +121,7 @@ export function PricingTable({
       group.rows.push(row);
     }
     return result;
-  }, [rows, view, search]);
+  }, [rows, view, search, specials]);
 
   const categoryById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
@@ -141,23 +157,32 @@ export function PricingTable({
             className="bg-background pl-8"
           />
         </div>
-        <ViewTabs
-          label="Which items"
-          current={view}
-          onSelect={setView}
-          views={[
-            { value: "all", label: `For sale (${forSale.length})` },
-            { value: "attention", label: `Needs attention (${attentionCount})` },
-            { value: "notForSale", label: `Not for sale (${notForSaleCount})` },
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewTabs
+            label="Which items"
+            current={view}
+            onSelect={setView}
+            views={[
+              { value: "all", label: `For sale (${forSale.length})` },
+              { value: "attention", label: `Needs attention (${attentionCount})` },
+              { value: "notForSale", label: `Not for sale (${notForSaleCount})` },
+            ]}
+          />
+          <SpecialsFilterTabs
+            current={specials}
+            count={specialCount}
+            onSelect={setSpecials}
+          />
+        </div>
       </div>
 
       {groups.length === 0 && (
         <p className="rounded-lg border bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-          {view === "attention"
-            ? "Nothing needs attention."
-            : "No items found."}
+          {specials === "only"
+            ? "No specials found."
+            : view === "attention"
+              ? "Nothing needs attention."
+              : "No items found."}
         </p>
       )}
 
@@ -303,6 +328,9 @@ function PricingTableRow({
                   className="shrink-0"
                 />
               </span>
+              {row.special && (
+                <SpecialBadge className="h-auto px-1.5 py-0.5 text-[11px]" />
+              )}
               {pricingCategory && (
                 <Tooltip>
                   <TooltipTrigger
