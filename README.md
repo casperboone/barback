@@ -334,6 +334,42 @@ own images are resized the same way on download.
 | `npm run supplier:images -- --catalog` | The whole catalog, ~33 MB of database |
 | `npm run images:compact` | Report on oversized cached images; `-- --apply` rewrites them |
 
+## Users and sign-in
+
+Everyone signs in with Google. bar@dwhdelft.nl always has access. Any other
+Google account that signs in is turned away ("This Google account can't get
+in yet") and shows up on `/users` (in the menu behind your photo, which gets an amber dot while
+someone is waiting). From there it can be let in or declined. You can also add
+an address up front, so that person gets straight in on their first sign-in;
+their name and photo come from Google then. Removing someone signs them out
+everywhere, and if they sign in again, that shows up as a new request.
+
+`src/proxy.ts` checks the session against the database on every request, so
+pages, API routes and server actions are all covered. Sessions last 30 days
+and renew while the app is in use. The cookie holds a random token, and the
+database stores only its hash (`src/lib/auth`).
+
+Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` the app stays open in local
+development, as before. A production build without them refuses every request
+instead.
+
+Setting up the Google client, once:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick
+   a project, and under **Google Auth Platform** set up the consent screen with
+   audience **External** (the bar's account and people's own Gmail addresses
+   both have to work). Publish it to production; Google's basic scopes
+   (email, profile) need no verification.
+2. Under **Clients**, create an OAuth client of type **Web application** with
+   these authorized redirect URIs:
+   - `http://localhost:3000/auth/google/callback`
+   - `https://<your-domain>/auth/google/callback`
+3. Put the client ID and secret in `.env` and in Vercel as `GOOGLE_CLIENT_ID`
+   and `GOOGLE_CLIENT_SECRET`.
+
+Vercel preview deployments each have their own address, which Google won't
+accept unless it's registered, so sign-in only works on the URLs listed above.
+
 ## Deploying to Vercel
 
 The app is prepared for Vercel: pages that read the database render per
@@ -342,9 +378,8 @@ images are cached in the database instead of on disk (serverless has no
 persistent filesystem), and background image fetching uses `after()` so it
 survives the response.
 
-Access is protected by HTTP basic auth in `src/proxy.ts`: set `APP_PASSWORD`
-and the browser asks for it once. Without that variable the app is open, which
-is fine locally but never when hosted.
+Access goes through Google sign-in (see [Users and sign-in](#users-and-sign-in)),
+which needs a Google OAuth client.
 
 1. Create a database at [turso.tech](https://turso.tech) and copy its URL
    (`libsql://…`) plus an auth token.
@@ -352,8 +387,9 @@ is fine locally but never when hosted.
    create the tables there.
 3. Push this repository to GitHub and import it in Vercel.
 4. Set the environment variables in Vercel: `SUPPLIER_USERNAME`,
-   `SUPPLIER_PASSWORD`, `APP_PASSWORD`, `DATABASE_URL`, `DATABASE_AUTH_TOKEN`.
-5. Deploy, open the app, log in and press **Import products**.
+   `SUPPLIER_PASSWORD`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+   `DATABASE_URL`, `DATABASE_AUTH_TOKEN`.
+5. Deploy, sign in with bar@dwhdelft.nl and press **Import products**.
 
 Migrations are not run automatically; after a schema change run
 `npm run db:migrate` with the Turso variables in your environment.

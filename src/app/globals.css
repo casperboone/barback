@@ -128,3 +128,16 @@
     @apply font-sans;
   }
 }
+/* The pendant lights on the login page, breathing very slightly. */
+@keyframes login-lamp {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.82; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .login-lamp-glow {
+    animation: login-lamp 7s ease-in-out infinite;
+  }
+  .login-lamp-glow:nth-of-type(2n) {
+    animation-duration: 9s;
+  }
+}

@@ -511,3 +511,38 @@ export type PricingSettings = typeof pricingSettings.$inferSelect;
 export type SalePriceChange = typeof salePriceChanges.$inferSelect;
 export type AssortmentCategory = typeof assortmentCategories.$inferSelect;
 export type AssortmentItem = typeof assortmentItems.$inferSelect;
+
+// People who can sign in with Google, plus Google accounts that asked for
+// access. Someone can be added by email beforehand; their name and photo come
+// from Google on their first sign-in. src/lib/auth has the rules.
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  // Always lowercase.
+  email: text("email").notNull().unique(),
+  // Google's stable id for the account, set on the first sign-in.
+  googleId: text("google_id").unique(),
+  name: text("name"),
+  image: text("image"),
+  // "requested": signed in with Google but nobody let them in yet.
+  status: text("status", { enum: ["requested", "approved"] }).notNull(),
+  approvedAt: integer("approved_at", { mode: "timestamp" }),
+  lastSignInAt: integer("last_sign_in_at", { mode: "timestamp" }),
+  createdAt: createdAt(),
+});
+
+// A signed-in browser. The cookie holds a random token; only its SHA-256 is
+// stored, so a leaked database can't be used to sign in.
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("sessions_user_idx").on(table.userId)]
+);
+
+export type User = typeof users.$inferSelect;

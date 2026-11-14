@@ -1,36 +1,65 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { authMode } from "@/lib/auth/config";
+import {
+  extendSession,
+  SESSION_COOKIE,
+  sessionCookieOptions,
+  validateSessionToken,
+} from "@/lib/auth/session";
 
-// The simplest protection that works everywhere: HTTP basic auth with one
-// shared password from the environment. Without APP_PASSWORD (local
-// development) the app stays open.
-export function proxy(request: NextRequest) {
-  const password = process.env.APP_PASSWORD;
-  if (!password) return NextResponse.next();
+// The sign-in pages themselves, the only ones open to everyone.
+const PUBLIC_PATHS = ["/login", "/auth/google", "/auth/google/callback"];
 
-  const header = request.headers.get("authorization");
-  if (header?.startsWith("Basic ")) {
-    const decoded = atob(header.slice(6));
-    const given = decoded.slice(decoded.indexOf(":") + 1);
-    if (matches(given, password)) return NextResponse.next();
+// Every page, API route and server action passes through here, so this is the
+// one place that checks the session against the database. Images are cached
+// by the browser, so that's one lookup per page, not per thumbnail.
+export async function proxy(request: NextRequest) {
+  const mode = authMode();
+  if (mode === "open") return NextResponse.next();
+  if (mode === "misconfigured") {
+    return new NextResponse(
+      "Sign-in isn't set up: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+      { status: 503 },
+    );
   }
 
-  return new NextResponse("Log in to continue.", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Inventory Manager", charset="UTF-8"',
-    },
-  });
+  if (PUBLIC_PATHS.includes(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const found = token ? await validateSessionToken(token) : null;
+  if (!token || !found) return turnAway(request);
+
+  const response = NextResponse.next();
+  const expiresAt = await extendSession(found.session);
+  if (expiresAt) {
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
+  }
+  return response;
 }
 
-// Compares without leaking the answer through how long it takes.
-function matches(given: string, expected: string) {
-  if (given.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < given.length; i++) {
-    diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-  return diff === 0;
+// Someone opening a page goes to the login page and comes back afterwards;
+// anything else (a server action, an image, a PDF) just gets refused.
+function turnAway(request: NextRequest) {
+  const isPage =
+    request.method === "GET" &&
+    !request.headers.has("next-action") &&
+    request.headers.get("accept")?.includes("text/html");
+
+  const response = isPage
+    ? NextResponse.redirect(loginUrl(request))
+    : new NextResponse("Sign in to continue.", { status: 401 });
+  response.cookies.delete(SESSION_COOKIE);
+  return response;
+}
+
+function loginUrl(request: NextRequest) {
+  const url = new URL("/login", request.nextUrl.origin);
+  const { pathname, search } = request.nextUrl;
+  if (pathname !== "/") url.searchParams.set("next", pathname + search);
+  return url;
 }
 
 export const config = {
