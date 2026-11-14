@@ -23,9 +23,11 @@ import { Input } from "@/components/ui/input";
 import type { OrderLine } from "@/db/schema";
 import { formatDate, formatInputNumber, formatNumber, formatPrice } from "@/lib/format";
 import type { LineProgress } from "@/lib/orders/matching";
+import type { PriceDifference } from "@/lib/orders/prices";
 import type { OrderDetail } from "@/lib/orders/queries";
 import { orderLabel, orderReference, RUST_CHECKOUT } from "@/lib/orders/reference";
 import { parseTypedNumber } from "@/lib/numbers";
+import { cn } from "@/lib/utils";
 import { OneOffDialog } from "@/app/order-list/one-off-dialog";
 import {
   deleteDraft,
@@ -82,6 +84,7 @@ function Panel({
 
 export function OrderView({ detail }: { detail: OrderDetail }) {
   const { order, lines, documents, progress, suggestions, linkable } = detail;
+  const { priceDifferences } = detail;
   const isDraft = order.status === "draft";
   const reference = orderReference(order.id);
   const [addingOneOff, setAddingOneOff] = useState(false);
@@ -141,6 +144,10 @@ export function OrderView({ detail }: { detail: OrderDetail }) {
           Sent over two weeks ago and there&apos;s still no invoice. Check
           whether it was placed, and close it if it wasn&apos;t.
         </p>
+      )}
+
+      {priceDifferences.length > 0 && (
+        <PriceSummary differences={priceDifferences} />
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -221,6 +228,7 @@ export function OrderView({ detail }: { detail: OrderDetail }) {
               isClosed={order.status === "closed"}
               progress={progress.lines.find((row) => row.id === line.id)!}
               substitutes={detail.substitutes[line.id] ?? []}
+              price={priceDifferences.find((row) => row.id === line.id)}
             />
           ))}
         </ul>
@@ -451,12 +459,14 @@ function LineRow({
   isClosed,
   progress,
   substitutes,
+  price,
 }: {
   line: OrderLine;
   isDraft: boolean;
   isClosed: boolean;
   progress: LineProgress;
   substitutes: OrderDetail["substitutes"][number];
+  price?: PriceDifference;
 }) {
   const { pending, run } = useAction();
   const { status, shortBy } = progress;
@@ -465,7 +475,13 @@ function LineRow({
     !isDraft && !isClosed && (status === "by_hand" || line.receivedQuantity > 0);
 
   return (
-    <li className="space-y-1.5 px-3 py-2.5">
+    <li
+      className={cn(
+        "space-y-1.5 px-3 py-2.5",
+        price &&
+          "border-l-4 border-l-amber-400 bg-amber-50/60 pl-2 dark:bg-amber-950/20",
+      )}
+    >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="font-medium">{line.name}</div>
@@ -501,6 +517,8 @@ function LineRow({
           {formatNumber(progress.overBy)} more than ordered.
         </p>
       )}
+
+      {price && <PriceNote price={price} />}
 
       {canTick && <TickOff line={line} />}
 
@@ -556,6 +574,57 @@ function LineRow({
         </Button>
       )}
     </li>
+  );
+}
+
+// "€ 0,50 more" or "€ 0,50 less", so the sign can't be missed.
+function moreOrLess(amount: number) {
+  return `${formatPrice(Math.abs(amount))} ${amount > 0 ? "more" : "less"}`;
+}
+
+function PriceSummary({ differences }: { differences: PriceDifference[] }) {
+  // Apart, so a line that cost less doesn't hide one that cost more.
+  const sumOf = (rows: PriceDifference[]) =>
+    rows.reduce((sum, row) => sum + row.total, 0);
+  const parts = [
+    sumOf(differences.filter((row) => row.total > 0)),
+    sumOf(differences.filter((row) => row.total < 0)),
+  ]
+    .filter((amount) => Math.round(amount * 100) !== 0)
+    .map(moreOrLess);
+  const count = differences.length;
+  return (
+    <p className="rounded-lg border border-amber-300 bg-amber-50/60 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+      Rust charged another price than we ordered at on {count} line
+      {count === 1 ? "" : "s"}
+      {parts.length > 0 && `: ${parts.join(" and ")}`}.
+    </p>
+  );
+}
+
+function PriceNote({ price }: { price: PriceDifference }) {
+  const where = price.source === "invoice" ? "on the invoice" : "on the Rust order";
+  return (
+    <div className="space-y-0.5 text-xs tabular-nums">
+      <p>
+        Ordered at {formatPrice(price.ordered)}, Rust charged{" "}
+        {price.varies && "on average "}
+        <span className="font-semibold">{formatPrice(price.charged)}</span>{" "}
+        {where}.
+      </p>
+      {price.perUnit !== 0 && (
+        <p className="font-medium text-amber-800 dark:text-amber-300">
+          {price.quantity === 1
+            ? `${moreOrLess(price.perUnit)}.`
+            : `${moreOrLess(price.perUnit)} each, ${moreOrLess(price.total)} for the ${formatNumber(price.quantity)} charged.`}
+        </p>
+      )}
+      {price.varies && (
+        <p className="text-muted-foreground">
+          Not the same on every document ({price.documentNos.join(", ")}).
+        </p>
+      )}
+    </div>
   );
 }
 

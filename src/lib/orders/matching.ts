@@ -18,6 +18,10 @@ export type DocumentLine = {
   itemNo: string;
   description: string | null;
   quantity: number | null;
+  // For comparing prices; the matching itself only goes by quantity.
+  unitPrice?: number | null;
+  discountPercent?: number | null;
+  amount?: number | null;
 };
 
 export type RustDocument = {

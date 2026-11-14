@@ -74,7 +74,7 @@ function OrderRow({
 }
 
 function TrackedRow({ tracked }: { tracked: TrackedOrder }) {
-  const { order, lines, documents, progress } = tracked;
+  const { order, lines, documents, progress, priceDifferences } = tracked;
   const rustOrders = documents.filter((doc) => doc.documentType === "order");
 
   return (
@@ -90,6 +90,12 @@ function TrackedRow({ tracked }: { tracked: TrackedOrder }) {
           {progress.shortCount > 0 && order.status !== "closed" && (
             <Badge variant="outline" className="border-destructive/40 text-destructive">
               {progress.shortCount} not delivered
+            </Badge>
+          )}
+          {priceDifferences.length > 0 && (
+            <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-400">
+              {priceDifferences.length} price
+              {priceDifferences.length === 1 ? " differs" : "s differ"}
             </Badge>
           )}
           {progress.overdue && order.status !== "closed" && (
