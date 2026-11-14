@@ -8,7 +8,7 @@ import { NET_UNIT_PRICE_SQL, netUnitPrice } from "./net-unit-price";
 //
 // Deposits ("emballage") are charged and refunded on the same invoices. They
 // are not really purchases, so they can be left out.
-const DEPOSIT_MATCH = sql`upper(coalesce(description, '')) like '%EMBALLAGE%'`;
+export const DEPOSIT_MATCH = sql`upper(coalesce(description, '')) like '%EMBALLAGE%'`;
 const SIGN = sql`case when document_type = 'creditmemo' then -1 else 1 end`;
 
 export type PurchaseYear = {
