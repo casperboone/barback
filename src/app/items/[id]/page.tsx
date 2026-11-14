@@ -19,12 +19,14 @@ import {
   formatPrice,
 } from "@/lib/format";
 import { getItemDetail, getItemName, type ItemLink } from "@/lib/items/queries";
+import { toDay, type QuantityPoint } from "@/lib/items/quantity-history";
 import { getDraftedQuantity } from "@/lib/orders/drafts";
 import { priceToneStyle, signalChips } from "@/lib/pricing/signals";
 import type { DiscountStatus } from "@/lib/products/discount-types";
 import { cn } from "@/lib/utils";
 import { PurchaseDocumentTable } from "@/app/financials/purchase-history/purchase-document-table";
 import { SalePriceHistoryList } from "@/app/pricing/sale-price-history";
+import { HistoryChart } from "./history-chart";
 
 // Always read the database at request time instead of prerendering at build.
 export const dynamic = "force-dynamic";
@@ -209,6 +211,8 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
 
         <div className="space-y-4">
           <SupplierSection detail={detail} />
+          <QuantitySection detail={detail} unit={unit} />
+          <PriceHistorySection detail={detail} unit={unit} />
           <PurchasesSection detail={detail} unit={unit} />
         </div>
       </div>
@@ -320,6 +324,89 @@ function PricingSection({ detail }: { detail: Detail }) {
           <SalePriceHistoryList history={salePriceHistory} />
         )}
       </div>
+    </Section>
+  );
+}
+
+// Left out without invoices to draw from; Purchases says why.
+function QuantitySection({ detail, unit }: { detail: Detail; unit: string }) {
+  const { purchases, sharedWith } = detail;
+  if (purchases.length === 0) return null;
+
+  // Credit notes count against what was bought, as in the yearly totals.
+  const points: QuantityPoint[] = purchases.flatMap((line) =>
+    line.documentDate && line.quantity
+      ? [
+          {
+            day: toDay(line.documentDate),
+            quantity:
+              line.documentType === "creditmemo"
+                ? -line.quantity
+                : line.quantity,
+            documentNo: line.documentNo,
+          },
+        ]
+      : [],
+  );
+
+  return (
+    <Section title="Bought over time">
+      <HistoryChart
+        measure="quantity"
+        points={points}
+        today={toDay(new Date())}
+        unit={unit}
+      />
+      {sharedWith.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Includes what was bought for <ItemList items={sharedWith} />, which
+          shares this supplier product.
+        </p>
+      )}
+    </Section>
+  );
+}
+
+// What a unit cost on the invoices, discount included, like "Last price paid".
+// Returns, credit notes and free goods say nothing about the price.
+function PriceHistorySection({
+  detail,
+  unit,
+}: {
+  detail: Detail;
+  unit: string;
+}) {
+  const points: QuantityPoint[] = detail.purchases.flatMap((line) =>
+    line.documentType === "invoice" &&
+    line.documentDate &&
+    line.quantity != null &&
+    line.quantity > 0 &&
+    line.amount != null &&
+    line.amount > 0
+      ? [
+          {
+            day: toDay(line.documentDate),
+            quantity: line.quantity,
+            amount: line.amount,
+            documentNo: line.documentNo,
+          },
+        ]
+      : [],
+  );
+  if (points.length === 0) return null;
+
+  return (
+    <Section title="Purchase price over time">
+      <HistoryChart
+        measure="price"
+        points={points}
+        today={toDay(new Date())}
+        unit={unit}
+      />
+      <p className="text-xs text-muted-foreground">
+        The average paid per unit in each period, after discount and excluding
+        VAT.
+      </p>
     </Section>
   );
 }
