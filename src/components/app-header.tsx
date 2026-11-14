@@ -8,14 +8,14 @@ import { findActiveHref } from "@/lib/section-nav";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  // The home page: what needs doing, from every other screen.
-  { href: "/", label: "Attention" },
   { href: "/order-list", label: "Order list" },
   { href: "/orders", label: "Orders" },
   { href: "/pricing", label: "Pricing" },
   { href: "/catalog", label: "Catalog" },
   { href: "/financials", label: "Rust Financials" },
   { href: "/imports", label: "Imports" },
+  // What needs doing, from all of the above.
+  { href: "/attention", label: "Attention" },
 ];
 
 export function AppHeader() {

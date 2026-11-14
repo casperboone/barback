@@ -21,12 +21,13 @@ the database.
 
 ## Needs attention
 
-`/`, "Attention" in the header, gathers what is worth doing something about
+`/attention`, last in the header, gathers what is worth doing something about
 from the other screens. Each kind gets a card with a count, a line on what it
-adds up to, the worst five cases (each leading to where it's dealt with) and a
-link to the screen with all of them. Kinds with nothing to do are listed at the
-bottom as checked, and with no cards at all the page says "All clear". The
-cards always come in this order, so each has its place on the phone:
+adds up to, the worst five cases (the rest fold open underneath) and a link to
+the screen with all of them. Every case leads to where it's dealt with. Kinds
+with nothing to do are listed as checked, and with no cards at all the page
+says "All clear". The cards always come in this order, so each has its place
+on the phone:
 
 - **Payments**: open entries past their due date, plus anything due within a
   week, like the outstanding list (amounts including VAT).
@@ -43,6 +44,15 @@ cards always come in this order, so each has its place on the phone:
 - **Imports**: the catalog when it hasn't synced in 7 days, the documents in 3
   (orders and payments are followed with them), a failed last run, or
   documents left to read, with the import button right there.
+
+Some of it you know about and leave as it is. The tick at the end of a row
+acknowledges it: it stops counting and moves to *Acknowledged* at the bottom,
+where it can be put back. It stays there only as long as it is in the state
+you acknowledged (`attention_acknowledgements` keeps a fingerprint of it), so
+it shows again once it changes: an invoice that goes from due to late or to
+another amount, a line that is short by more, a price flag with other
+amounts, another document to link, or a newer import run. Acknowledging only
+affects this page; the other screens keep their own flags.
 
 Everything comes from the queries and signals the other screens use
 (`src/lib/attention/queries.ts`), so the counts agree with theirs.
