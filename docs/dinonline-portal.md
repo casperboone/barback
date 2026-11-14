@@ -71,9 +71,11 @@ assortment, 2 = already in it). Everything else is kept in `raw`.
 `Catalog*` / `ItemCategoryCode` fields exist but are always null — the
 supplier has no usable categories, which is why ours are our own.
 
-`Id` is the portal's internal product id (1, 3, 7, …), *not* the item number,
-and it is what the cart's bulk endpoint wants. It is stored as
-`supplier_products.supplier_id`.
+`Id` is the portal's internal product id (1, 3, 7, …), *not* the item number.
+It is stored as `supplier_products.supplier_id`, but **it is not stable**: the
+portal renumbers its products, and two days after an import 2,704 of ~3,300
+ids had moved by a few places. Never send a stored `Id` back to the portal;
+use the item number.
 
 ### Cart
 
@@ -84,6 +86,10 @@ and it is what the cart's bulk endpoint wants. It is stored as
 | `POST /Product/delete` | `shoppingCartItemId` | Removes a cart line. |
 | `POST /OrderConfirm/RefreshShoppingCart` | | Cart contents. |
 | `POST /OrderConfirm/PlaceOrder` | | **Never call this.** |
+
+**We no longer use `additems`**: it keys on `Id`, so with stored ids it put
+the neighbouring product in the cart (Bitter Lemon for Ginger Beer). Every
+line goes through `quickItemAdd` by item number instead.
 
 `additems` takes `{"items": [[id, quantity, variant, unitOfMeasureCode, key], …]}`
 with `content-type: application/json`, where `id` is the internal `Id` above,
