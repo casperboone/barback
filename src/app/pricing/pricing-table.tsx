@@ -59,18 +59,21 @@ function inView(row: PricingRow, view: View) {
 export function PricingTable({
   overview,
   initialItemId,
+  initialView,
 }: {
   overview: PricingOverview;
   // From the URL: its dialog starts open, over the list it's in. An archived
   // item isn't listed here, but still opens.
   initialItemId: number | null;
+  // From the URL as well, for links that lead to one view.
+  initialView?: View;
 }) {
   const { rows, categories, reference, years } = overview;
   const router = useRouter();
   const [view, setView] = useState<View>(
     rows.find((row) => row.id === initialItemId)?.notForSale
       ? "notForSale"
-      : "all",
+      : (initialView ?? "all"),
   );
   const [search, setSearch] = useState("");
   const [specials, setSpecials] = useState<SpecialsFilter>("any");

@@ -51,6 +51,18 @@ export function formatDateTime(value: Date | null | undefined) {
   return value ? `${dateFormat.format(value)} ${timeFormat.format(value)}` : "—";
 }
 
+// How long ago something happened, for telling at a glance whether it is
+// recent: "40 min ago", "3 hours ago", "5 days ago".
+export function formatAge(value: Date, now = new Date()) {
+  const minutes = Math.floor((now.getTime() - value.getTime()) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export function formatDuration(start: Date, end: Date | null) {
   if (!end) return "—";
   const seconds = Math.round((end.getTime() - start.getTime()) / 1000);

@@ -6,10 +6,15 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Pricing" };
 
 export default async function PricingPage(props: PageProps<"/pricing">) {
-  const { item } = await props.searchParams;
+  const { item, view } = await props.searchParams;
   const overview = await getPricingOverview();
 
   return (
-    <PricingTable overview={overview} initialItemId={parseItemParam(item)} />
+    <PricingTable
+      overview={overview}
+      initialItemId={parseItemParam(item)}
+      // Only this one is linked to, from the home page.
+      initialView={view === "attention" ? "attention" : undefined}
+    />
   );
 }

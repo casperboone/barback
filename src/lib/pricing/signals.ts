@@ -42,8 +42,32 @@ export function needsAttention(row: PricingRow) {
   );
 }
 
+export type SignalKey =
+  | "removed"
+  | "missing"
+  | "archived"
+  | "sum"
+  | "sumChanged"
+  | "margin"
+  | "advice"
+  | "cost"
+  | "alcohol";
+
+// Each kind of flag in a few words, for counting them up.
+export const SIGNAL_NAMES: Record<SignalKey, string> = {
+  removed: "gone from catalog",
+  archived: "uses archived item",
+  margin: "low margin",
+  cost: "cost moved",
+  sumChanged: "sum moved",
+  advice: "below advice",
+  sum: "differs from sum",
+  missing: "missing data",
+  alcohol: "cheap alcohol",
+};
+
 export type SignalChip = {
-  key: string;
+  key: SignalKey;
   label: string;
   detail: string;
   tone: "warn" | "bad";

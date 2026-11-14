@@ -301,6 +301,21 @@ async function getCandidates(order: Order): Promise<RustDocument[]> {
   );
 }
 
+// Sent and not done yet, so documents can still turn up for it.
+function isUnderWay({ order, progress }: TrackedOrder) {
+  return order.status === "sent" && progress.stage !== "complete";
+}
+
+// Rust's documents that look like they're this order's, best first. Only for
+// orders that are under way; the rest have nothing more coming.
+export async function getSuggestions(
+  tracked: TrackedOrder
+): Promise<Suggestion[]> {
+  if (!isUnderWay(tracked)) return [];
+  const { order, lines, progress } = tracked;
+  return suggestDocuments(order, lines, progress.lines, await getCandidates(order));
+}
+
 export type OrderDetail = TrackedOrder & {
   // Per line, what the product is called at Rust.
   descriptions: Record<string, string | null>;
@@ -340,9 +355,9 @@ export async function getOrderDetail(
     products.map((product) => [product.itemNo, product.description])
   );
 
-  const open = order.status === "sent" && tracked.progress.stage !== "complete";
-  const [candidates, linkable] = open
-    ? await Promise.all([getCandidates(order), getLinkableDocuments()])
+  const open = isUnderWay(tracked);
+  const [suggestions, linkable] = open
+    ? await Promise.all([getSuggestions(tracked), getLinkableDocuments()])
     : [[], []];
 
   const substitutes: OrderDetail["substitutes"] = {};
@@ -359,9 +374,7 @@ export async function getOrderDetail(
   return {
     ...tracked,
     descriptions,
-    suggestions: open
-      ? suggestDocuments(order, tracked.lines, tracked.progress.lines, candidates)
-      : [],
+    suggestions,
     linkable,
     substitutes,
   };
@@ -378,7 +391,11 @@ export type NotDeliveredLine = {
 // Everything that should have come and hasn't, over all open orders, and the
 // orders that have gone quiet.
 export async function getNotDelivered() {
-  const tracked = await getTrackedOrders();
+  return findNotDelivered(await getTrackedOrders());
+}
+
+// The same, for orders that are already loaded.
+export function findNotDelivered(tracked: TrackedOrder[]) {
   const lines: NotDeliveredLine[] = tracked.flatMap(
     ({ order, lines, progress }) =>
       lines.flatMap((line) => {

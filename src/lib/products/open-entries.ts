@@ -16,16 +16,20 @@ export type OpenEntry = {
   paymentDiscountDate: Date | null;
   // Positive once the due date has passed; null when there is no due date.
   daysOverdue: number | null;
+  // Until then, the days left to pay it (0 on the day itself).
+  daysUntilDue: number | null;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
 
-function daysOverdue(dueDate: Date | null, remaining: number | null) {
+// Days from today to the due date, negative once it has passed; null when
+// there is nothing left to pay. Rounded, because the due date is a day at
+// midnight UTC and today starts at the server's own midnight.
+function daysToDue(dueDate: Date | null, remaining: number | null) {
   if (!dueDate || !remaining || remaining <= 0) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const days = Math.floor((today.getTime() - dueDate.getTime()) / DAY);
-  return days > 0 ? days : null;
+  return Math.round((dueDate.getTime() - today.getTime()) / DAY);
 }
 
 export async function getOpenEntries(): Promise<{
@@ -41,18 +45,22 @@ export async function getOpenEntries(): Promise<{
     // Oldest first: what has been waiting longest matters most.
     .orderBy(asc(supplierOpenEntries.dueDate), desc(supplierOpenEntries.documentNo));
 
-  const entries = rows.map((row) => ({
-    documentNo: row.documentNo,
-    documentType: row.documentType,
-    documentDate: row.documentDate,
-    description: row.description,
-    orderNo: row.orderNo,
-    amount: row.amount,
-    remainingAmount: row.remainingAmount,
-    dueDate: row.dueDate,
-    paymentDiscountDate: row.paymentDiscountDate,
-    daysOverdue: daysOverdue(row.dueDate, row.remainingAmount),
-  }));
+  const entries = rows.map((row) => {
+    const days = daysToDue(row.dueDate, row.remainingAmount);
+    return {
+      documentNo: row.documentNo,
+      documentType: row.documentType,
+      documentDate: row.documentDate,
+      description: row.description,
+      orderNo: row.orderNo,
+      amount: row.amount,
+      remainingAmount: row.remainingAmount,
+      dueDate: row.dueDate,
+      paymentDiscountDate: row.paymentDiscountDate,
+      daysOverdue: days != null && days < 0 ? -days : null,
+      daysUntilDue: days != null && days >= 0 ? days : null,
+    };
+  });
 
   return {
     entries,
