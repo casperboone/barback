@@ -1,4 +1,4 @@
-# Inventory Manager
+# BarBack
 
 Next.js app for our Rust Food supplier catalog, assortment and ordering.
 

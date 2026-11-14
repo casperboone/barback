@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 
 export async function generateMetadata(props: PageProps<"/imports/[id]">) {
   const { id } = await props.params;
-  return { title: `Import #${id} · Inventory Manager` };
+  return { title: `Import #${id}` };
 }
 
 export default async function ImportPage(props: PageProps<"/imports/[id]">) {

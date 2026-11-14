@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 // page, so they get the platform maximum instead of the default.
 export const maxDuration = 60;
 
-export const metadata = { title: "Review order · Inventory Manager" };
+export const metadata = { title: "Review order" };
 
 export default async function ReviewOrderPage(
   props: PageProps<"/order-list/review">,

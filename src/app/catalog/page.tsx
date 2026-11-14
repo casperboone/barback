@@ -22,7 +22,7 @@ import { ProductFilters } from "./product-filters";
 // page, so they get the platform maximum instead of the default.
 export const maxDuration = 60;
 
-export const metadata = { title: "Rust catalog · Inventory Manager" };
+export const metadata = { title: "Rust catalog" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

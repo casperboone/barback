@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // The document import runs as a server action from this page.
 export const maxDuration = 60;
 
-export const metadata = { title: "Not delivered · Inventory Manager" };
+export const metadata = { title: "Not delivered" };
 
 export default async function NotDeliveredPage() {
   const { lines, overdue } = await getNotDelivered();

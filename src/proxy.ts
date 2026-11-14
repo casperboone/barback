@@ -18,7 +18,7 @@ export function proxy(request: NextRequest) {
   return new NextResponse("Log in to continue.", {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="Inventory Manager", charset="UTF-8"',
+      "WWW-Authenticate": 'Basic realm="BarBack", charset="UTF-8"',
     },
   });
 }

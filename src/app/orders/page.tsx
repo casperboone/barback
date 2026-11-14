@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 // The document import runs as a server action from this page.
 export const maxDuration = 60;
 
-export const metadata = { title: "Orders · Inventory Manager" };
+export const metadata = { title: "Orders" };
 
 const MAX_DONE = 50;
 
