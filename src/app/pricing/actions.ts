@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
   assortmentItems,
+  compositeComponents,
   pricingCategories,
   pricingSettings,
   salePriceChanges,
@@ -23,11 +24,14 @@ function failure(error: unknown, fallback: string) {
 function revalidate() {
   revalidatePath("/pricing");
   revalidatePath("/pricing/categories");
+  // A price shows on the item's page, and on those of its composites.
+  revalidatePath("/items/[id]", "page");
 }
 
 // Saving a price also records what a portion costs right now, which is what
 // "cost changed" on the pricing page compares against. Saving the same price
-// again is how you accept a new cost without changing the price.
+// again is how you accept a new cost without changing the price. For a
+// composite it also records what its components sell for, for "sum changed".
 export async function setSalePrice(itemId: number, price: number | null) {
   if (price != null && (!Number.isFinite(price) || price < 0)) {
     return { ok: false as const, error: "Invalid price." };
@@ -40,22 +44,40 @@ export async function setSalePrice(itemId: number, price: number | null) {
 
     const rounded = price == null ? null : Math.round(price * 100) / 100;
     const changed = rounded !== row.salePrice;
-    await db
-      .update(assortmentItems)
-      .set({
-        salePrice: rounded,
-        salePriceCost: rounded == null ? null : row.cost,
-        updatedAt: new Date(),
-      })
-      .where(eq(assortmentItems.id, itemId));
-    if (changed) {
-      await db.insert(salePriceChanges).values({
-        itemId,
-        oldPrice: row.salePrice,
-        newPrice: rounded,
-        cost: row.cost,
-      });
-    }
+    const components = row.composite?.components ?? [];
+    await db.batch([
+      db
+        .update(assortmentItems)
+        .set({
+          salePrice: rounded,
+          salePriceCost: rounded == null ? null : row.cost,
+          salePriceReference:
+            rounded == null ? null : (row.composite?.sum ?? null),
+          updatedAt: new Date(),
+        })
+        .where(eq(assortmentItems.id, itemId)),
+      ...components.map((component) =>
+        db
+          .update(compositeComponents)
+          .set({ referencePrice: rounded == null ? null : component.salePrice })
+          .where(
+            and(
+              eq(compositeComponents.compositeId, itemId),
+              eq(compositeComponents.componentId, component.id),
+            ),
+          ),
+      ),
+      ...(changed
+        ? [
+            db.insert(salePriceChanges).values({
+              itemId,
+              oldPrice: row.salePrice,
+              newPrice: rounded,
+              cost: row.cost,
+            }),
+          ]
+        : []),
+    ]);
     revalidate();
     return { ok: true as const };
   } catch (error) {

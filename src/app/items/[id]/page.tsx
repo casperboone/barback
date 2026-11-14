@@ -4,6 +4,7 @@ import {
   AlertTriangleIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  BlendIcon,
   LinkIcon,
 } from "lucide-react";
 import { DiscountBadge } from "@/components/discount-badge";
@@ -21,7 +22,11 @@ import {
 import { getItemDetail, getItemName, type ItemLink } from "@/lib/items/queries";
 import { toDay, type QuantityPoint } from "@/lib/items/quantity-history";
 import { getDraftedQuantity } from "@/lib/orders/drafts";
-import { priceToneStyle, signalChips } from "@/lib/pricing/signals";
+import {
+  priceToneStyle,
+  signalChips,
+  sumToneStyle,
+} from "@/lib/pricing/signals";
 import type { DiscountStatus } from "@/lib/products/discount-types";
 import { cn } from "@/lib/utils";
 import { PurchaseDocumentTable } from "@/app/financials/purchase-history/purchase-document-table";
@@ -121,7 +126,8 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
 
   const { item, orderCategory, product, pricing } = detail;
   const { row } = pricing;
-  const drafted = await getDraftedQuantity(item.id);
+  const composite = row.composite;
+  const drafted = composite ? 0 : await getDraftedQuantity(item.id);
   const removed = product?.removedAt != null;
   const unit = product?.unitOfMeasure?.toLowerCase() ?? "units";
 
@@ -132,10 +138,10 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         size="sm"
         className="-ml-2 text-muted-foreground"
         nativeButton={false}
-        render={<Link href="/order-list" />}
+        render={<Link href={composite ? "/pricing" : "/order-list"} />}
       >
         <ArrowLeftIcon />
-        Order list
+        {composite ? "Pricing" : "Order list"}
       </Button>
 
       <div className="flex items-start gap-3">
@@ -162,8 +168,14 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
               </Badge>
             )}
             {item.special && <SpecialBadge />}
+            {composite && (
+              <Badge variant="secondary" className="gap-1">
+                <BlendIcon className="size-3" />
+                Composite
+              </Badge>
+            )}
             {item.notForSale && <Badge variant="secondary">Not for sale</Badge>}
-            {!product && (
+            {!product && !composite && (
               <Badge variant="outline" className="gap-1 text-amber-700">
                 <AlertTriangleIcon className="size-3" />
                 Not linked
@@ -174,53 +186,155 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         </div>
       </div>
 
-      {/* Side by side only once the invoice table fits in half the page. */}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-        <div className="space-y-4">
-          <Section
-            title="Ordering"
-            action={
-              <EditLink href={`/order-list?item=${item.id}`}>Order list</EditLink>
-            }
-          >
-            <Facts>
-              <Fact label="Target">
-                {item.target != null ? `${formatNumber(item.target)} ${unit}` : "—"}
-              </Fact>
-              <Fact label="To buy">
-                {drafted > 0 ? `${formatNumber(drafted)} ${unit}` : "Nothing"}
-              </Fact>
-              <Fact label="Order category">{orderCategory}</Fact>
-              {item.note && (
-                <Fact label="Note" className="col-span-full">
-                  {item.note}
-                </Fact>
-              )}
-            </Facts>
-            {(!product || removed) && (
-              <Muted>
-                {removed
-                  ? "Rust Food no longer lists this, so it can't go in the cart and is ordered by hand."
-                  : "Not linked to a Rust Food product, so it can't go in the cart and is ordered by hand."}
-              </Muted>
-            )}
-          </Section>
-
+      {composite ? (
+        // Never bought, so there's nothing to order, no supplier and no
+        // purchases: what goes in, and what that comes to.
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+          <ComponentsSection detail={detail} />
           <PricingSection detail={detail} />
         </div>
+      ) : (
+        // Side by side only once the invoice table fits in half the page.
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+          <div className="space-y-4">
+            <Section
+              title="Ordering"
+              action={
+                <EditLink href={`/order-list?item=${item.id}`}>Order list</EditLink>
+              }
+            >
+              <Facts>
+                <Fact label="Target">
+                  {item.target != null ? `${formatNumber(item.target)} ${unit}` : "—"}
+                </Fact>
+                <Fact label="To buy">
+                  {drafted > 0 ? `${formatNumber(drafted)} ${unit}` : "Nothing"}
+                </Fact>
+                <Fact label="Order category">{orderCategory}</Fact>
+                {item.note && (
+                  <Fact label="Note" className="col-span-full">
+                    {item.note}
+                  </Fact>
+                )}
+              </Facts>
+              {(!product || removed) && (
+                <Muted>
+                  {removed
+                    ? "Rust Food no longer lists this, so it can't go in the cart and is ordered by hand."
+                    : "Not linked to a Rust Food product, so it can't go in the cart and is ordered by hand."}
+                </Muted>
+              )}
+            </Section>
 
-        <div className="space-y-4">
-          <SupplierSection detail={detail} />
-          <QuantitySection detail={detail} unit={unit} />
-          <PriceHistorySection detail={detail} unit={unit} />
-          <PurchasesSection detail={detail} unit={unit} />
+            <PricingSection detail={detail} />
+          </div>
+
+          <div className="space-y-4">
+            <SupplierSection detail={detail} />
+            <QuantitySection detail={detail} unit={unit} />
+            <PriceHistorySection detail={detail} unit={unit} />
+            <PurchasesSection detail={detail} unit={unit} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 type Detail = NonNullable<Awaited<ReturnType<typeof getItemDetail>>>;
+
+function ComponentsSection({ detail }: { detail: Detail }) {
+  const { item, pricing } = detail;
+  const composite = pricing.row.composite!;
+
+  return (
+    <Section
+      title="Components"
+      action={
+        <EditLink href={`/pricing?item=${item.id}`}>Pricing screen</EditLink>
+      }
+    >
+      {composite.components.length === 0 ? (
+        <Muted>Nothing in it yet.</Muted>
+      ) : (
+        <div className="-mx-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted-foreground">
+              <tr className="border-b">
+                <th className="px-3 py-1.5 text-left font-medium">Item</th>
+                <th className="px-2 py-1.5 text-right font-medium">Qty</th>
+                <th className="px-2 py-1.5 text-right font-medium">Price</th>
+                <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
+                <th className="px-3 py-1.5 text-right font-medium">Cost</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y tabular-nums">
+              {composite.components.map((component) => (
+                <tr key={component.id}>
+                  <td className="px-3 py-1.5">
+                    <span className="flex items-center gap-1">
+                      <span className="min-w-0 break-words">
+                        {component.name}
+                      </span>
+                      <OpenItemLink
+                        itemId={component.id}
+                        name={component.name}
+                        className="shrink-0"
+                      />
+                    </span>
+                    {component.archived && (
+                      <span className="text-xs text-destructive">Archived</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    {formatNumber(component.quantity, 2)}×
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    {formatPrice(component.salePrice)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    {formatPrice(
+                      component.salePrice != null
+                        ? component.salePrice * component.quantity
+                        : null,
+                    )}
+                  </td>
+                  <td className="px-3 py-1.5 text-right">
+                    {formatPrice(
+                      component.cost != null
+                        ? component.cost * component.quantity
+                        : null,
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="border-t font-medium tabular-nums">
+              <tr>
+                <td className="px-3 py-1.5" colSpan={3}>
+                  Together
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  {formatPrice(composite.sum)}
+                </td>
+                <td className="px-3 py-1.5 text-right">
+                  {formatPrice(pricing.row.cost)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+      {item.note && (
+        <Facts>
+          <Fact label="Note" className="col-span-full">
+            {item.note}
+          </Fact>
+        </Facts>
+      )}
+    </Section>
+  );
+}
 
 function PricingSection({ detail }: { detail: Detail }) {
   const { item, pricing, salePriceHistory } = detail;
@@ -229,7 +343,10 @@ function PricingSection({ detail }: { detail: Detail }) {
     name: reference?.name,
     alcoholPrice: reference?.alcoholPrice ?? null,
   });
-  const tone = priceToneStyle(row.salePrice, row.advice);
+  const composite = row.composite;
+  const tone = composite
+    ? sumToneStyle(row.salePrice, composite.sum)
+    : priceToneStyle(row.salePrice, row.advice);
 
   return (
     <Section
@@ -252,7 +369,11 @@ function PricingSection({ detail }: { detail: Detail }) {
           )}
         </Fact>
         <Fact label="Cost per portion">{formatPrice(row.cost)}</Fact>
-        <Fact label="Advice">{formatPrice(row.adviceRounded)}</Fact>
+        {composite ? (
+          <Fact label="Sum of components">{formatPrice(composite.sum)}</Fact>
+        ) : (
+          <Fact label="Advice">{formatPrice(row.adviceRounded)}</Fact>
+        )}
         <Fact
           label="Margin"
           className={cn(row.signals.lowMargin && "text-destructive")}
@@ -260,31 +381,26 @@ function PricingSection({ detail }: { detail: Detail }) {
           {formatPercent(row.margin)}
         </Fact>
         <Fact label="Profit per portion">{formatPrice(row.profit)}</Fact>
-        <Fact label="Pricing category">{category?.name ?? "—"}</Fact>
-        <Fact label="Purchase price">
-          {formatPrice(row.purchasePrice)}
-          {row.manualPurchasePrice != null && row.catalogPrice != null && (
-            <span className="block text-xs font-normal text-muted-foreground">
-              Rust {formatPrice(row.catalogPrice)}
-            </span>
-          )}
-        </Fact>
-        <Fact label="Portions per unit">
-          {formatNumber(row.portions, 1)}
-        </Fact>
-        <Fact label="VAT">{formatPercent(row.vatRate)}</Fact>
-        {row.alcoholPrice != null && (
-          <Fact
-            label="Per 10 ml alcohol"
-            className={cn(
-              row.signals.cheapAlcohol && "text-amber-700 dark:text-amber-400",
-            )}
-          >
-            {formatPrice(row.alcoholPrice)}
-          </Fact>
+        {!composite && (
+          <ProductPricingFacts row={row} category={category?.name} />
         )}
-        {row.purchaseSource && (
-          <Fact label="Bought at">{row.purchaseSource}</Fact>
+        {row.usedIn.length > 0 && (
+          <Fact label="Used in" className="col-span-full">
+            <ul className="space-y-1 font-normal">
+              {row.usedIn.map((use) => (
+                <li key={use.id} className="flex flex-wrap items-center gap-x-2">
+                  <OpenItemLink
+                    itemId={use.id}
+                    label={`${formatNumber(use.quantity, 2)}× in ${use.name}`}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {formatPrice(use.salePrice)}, components{" "}
+                    {formatPrice(use.sum)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Fact>
         )}
       </Facts>
 
@@ -325,6 +441,46 @@ function PricingSection({ detail }: { detail: Detail }) {
         )}
       </div>
     </Section>
+  );
+}
+
+// What only something we buy has: where its cost comes from.
+function ProductPricingFacts({
+  row,
+  category,
+}: {
+  row: Detail["pricing"]["row"];
+  category: string | undefined;
+}) {
+  return (
+    <>
+      <Fact label="Pricing category">{category ?? "—"}</Fact>
+      <Fact label="Purchase price">
+        {formatPrice(row.purchasePrice)}
+        {row.manualPurchasePrice != null && row.catalogPrice != null && (
+          <span className="block text-xs font-normal text-muted-foreground">
+            Rust {formatPrice(row.catalogPrice)}
+          </span>
+        )}
+      </Fact>
+      <Fact label="Portions per unit">
+        {formatNumber(row.portions, 1)}
+      </Fact>
+      <Fact label="VAT">{formatPercent(row.vatRate)}</Fact>
+      {row.alcoholPrice != null && (
+        <Fact
+          label="Per 10 ml alcohol"
+          className={cn(
+            row.signals.cheapAlcohol && "text-amber-700 dark:text-amber-400",
+          )}
+        >
+          {formatPrice(row.alcoholPrice)}
+        </Fact>
+      )}
+      {row.purchaseSource && (
+        <Fact label="Bought at">{row.purchaseSource}</Fact>
+      )}
+    </>
   );
 }
 

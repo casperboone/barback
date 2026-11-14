@@ -270,8 +270,10 @@ export const assortmentItems = sqliteTable(
       .notNull()
       .references(() => assortmentCategories.id),
     // A "note" is a free text line between products, for jotting things down
-    // while walking around the stock. Only its name is used.
-    kind: text("kind", { enum: ["product", "note"] })
+    // while walking around the stock. Only its name is used. A "composite" is
+    // sold but never bought, like a gin-tonic: it's made of other items (see
+    // composite_components) and only shows up on the pricing side.
+    kind: text("kind", { enum: ["product", "note", "composite"] })
       .notNull()
       .default("product"),
     // Our own name for the product, e.g. "Coca-Cola Zero".
@@ -319,6 +321,9 @@ export const assortmentItems = sqliteTable(
     // The cost per portion when the sale price was last set, so the pricing
     // page can tell when the purchase price moved since.
     salePriceCost: real("sale_price_cost"),
+    // Composites only: what their components' prices added up to when the
+    // sale price was last set, so a component's new price shows on them.
+    salePriceReference: real("sale_price_reference"),
     archivedAt: integer("archived_at", { mode: "timestamp" }),
     createdAt: createdAt(),
     updatedAt: integer("updated_at", { mode: "timestamp" })
@@ -345,6 +350,35 @@ export const assortmentItemImages = sqliteTable("assortment_item_images", {
   sourceName: text("source_name"),
   createdAt: createdAt(),
 });
+
+// What a composite is made of: other items (products, never notes or other
+// composites) with how much of each goes in, like 1 gin and 1 tonic.
+export const compositeComponents = sqliteTable(
+  "composite_components",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    compositeId: integer("composite_id")
+      .notNull()
+      .references(() => assortmentItems.id, { onDelete: "cascade" }),
+    // No cascade: deleting an item a composite uses is refused instead.
+    componentId: integer("component_id")
+      .notNull()
+      .references(() => assortmentItems.id),
+    // In portions of the component; can be a fraction.
+    quantity: real("quantity").notNull(),
+    // The component's sale price when the composite's price was last set, to
+    // say which component moved the sum since. Null for one added after that.
+    referencePrice: real("reference_price"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("composite_components_pair_idx").on(
+      t.compositeId,
+      t.componentId
+    ),
+    index("composite_components_component_idx").on(t.componentId),
+  ]
+);
 
 // Every change to a sale price, for looking back at what we charged when.
 export const salePriceChanges = sqliteTable(
@@ -511,5 +545,6 @@ export type SupplierOrderLine = typeof supplierOrderLines.$inferSelect;
 export type PricingCategory = typeof pricingCategories.$inferSelect;
 export type PricingSettings = typeof pricingSettings.$inferSelect;
 export type SalePriceChange = typeof salePriceChanges.$inferSelect;
+export type CompositeComponent = typeof compositeComponents.$inferSelect;
 export type AssortmentCategory = typeof assortmentCategories.$inferSelect;
 export type AssortmentItem = typeof assortmentItems.$inferSelect;

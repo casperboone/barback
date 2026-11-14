@@ -136,6 +136,8 @@ The order list opens it at Item, the pricing screen at Pricing, and an item's
 own page has links to both. Archive, restore and delete are in its footer, and
 archived items open from the Archived view on the order list. It loads what it
 needs per item when it opens. The sale price itself is set in the pricing table.
+Pricing also lists the composites an item goes into. A composite gets its own
+version of the dialog; see [Composite products](#composite-products).
 
 ## Pricing
 
@@ -178,6 +180,44 @@ premium margin, the cost per portion moved since the price was last saved (save
 it again to accept), or 10 ml of alcohol is cheaper than in the reference drink
 (Queer Beer).
 
+### Composite products
+
+Some things we sell are made of other items: a gin-tonic is a portion of gin
+and a tonic. *Composite* on the pricing screen creates one. Its dialog takes a
+name, the heading it's listed under, an image, a note and what goes in: items
+from our own list with a quantity each (in portions, so 0,5 works). Only
+products go in; not notes, and not other composites.
+
+A composite is never ordered. It stays off the order list, so it never gets
+on an order, into the cart, into order tracking or into purchase statistics.
+It shows on the pricing screen, in the price list PDF and on its own item
+page. In the database it's an `assortment_items` row with `kind` set to
+`composite`. What goes into it lives in `composite_components`.
+
+Its price is set in the table like any other. In place of the advice it shows
+the **sum**: what its components sell for together, price × quantity. Its
+cost and margin come from the components' cost per portion. The arrow next to
+the price takes the sum. The calculation is in `src/lib/pricing/composite.ts`,
+with its tests next to it. A composite gets flagged when:
+
+- its price differs from the sum, by any amount (`€ 0,50 under sum`);
+- the sum moved since its price was saved (`Sum up € 0,50`), which also says
+  which component's price moved. Saving the price again, or the ✓, accepts it.
+  Changing what goes in moves the sum too. For this, saving a price records
+  the sum (`sale_price_reference`) and each component's price
+  (`composite_components.reference_price`);
+- the cost moved, as for any item;
+- a component is archived. It still counts towards the sum, so either take it
+  out or restore it;
+- data is missing: no components, or a component without a price or cost.
+
+The other side shows too. A product that goes into composites says so under
+its name ("In Gin-tonic"). While you type a new price for it, a panel lists
+what each of those composites' sums becomes. Their own prices stay put until
+you change them, and in the meantime they show a moved sum. The item page
+and the dialog list the composites an item goes into. An item that is in a
+composite can't be deleted until it's taken out, but it can be archived.
+
 The sheet was imported once with
 `npm run pricing:import -- Prijsberekening.xlsx` (dry run; add `--apply` to
 write). It matches rows to items by article number within the same heading,
@@ -188,12 +228,15 @@ supplier's description, and refuses to run once pricing categories exist.
 
 `/items/[id]` shows everything we know about one item on a single read-only
 page, including archived items. Any screen that shows one of our items links to
-it. It has four sections:
+it. A composite's page has just its components (with the price and cost of
+each, and what they come to together) and its pricing. Any other item's page
+has four sections:
 
 - **Ordering**: target, what is on the list to buy, the order category and the
   note.
 - **Pricing**: the sale price with its cost, advice and margin, the same flags
-  as the pricing table, and the history of price changes.
+  as the pricing table, the composites it goes into, and the history of price
+  changes.
 - **Supplier**: catalog price, line discount and how the catalog price moved,
   with a warning when Rust no longer lists the product.
 - **Purchases**: what a unit last cost us, plus every document the product

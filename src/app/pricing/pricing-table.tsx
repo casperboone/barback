@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangleIcon,
   BanknoteIcon,
+  BlendIcon,
   ArrowLeftIcon,
   CheckIcon,
   PlusIcon,
@@ -36,26 +37,19 @@ import {
 } from "@/lib/format";
 import { parseTypedNumber } from "@/lib/numbers";
 import type { PricingOverview, PricingRow } from "@/lib/pricing/queries";
-import { priceToneStyle, signalChips } from "@/lib/pricing/signals";
+import { sumWithPrice } from "@/lib/pricing/composite";
+import {
+  needsAttention,
+  priceToneStyle,
+  signalChips,
+  sumToneStyle,
+} from "@/lib/pricing/signals";
 import { cn } from "@/lib/utils";
 import { setSalePrice } from "./actions";
 import { ExportPdfButton } from "./export-pdf-button";
 import { ItemDialog, type ItemDialogState } from "@/app/items/item-dialog";
 
 type View = "all" | "attention" | "notForSale";
-
-function needsAttention(row: PricingRow) {
-  const { missing, belowAdvice, lowMargin, costChanged, cheapAlcohol } =
-    row.signals;
-  return (
-    row.supplierRemoved ||
-    missing.length > 0 ||
-    belowAdvice ||
-    lowMargin ||
-    costChanged ||
-    cheapAlcohol
-  );
-}
 
 function inView(row: PricingRow, view: View) {
   if (view === "notForSale") return row.notForSale;
@@ -101,7 +95,10 @@ export function PricingTable({
       if (!inView(row, view)) return false;
       if (!matchesSpecials(row.special, specials)) return false;
       if (!query) return true;
-      return [row.name, row.supplierDescription, row.purchaseSource]
+      // A composite also turns up for what goes in it ("gin").
+      const components =
+        row.composite?.components.map((component) => component.name) ?? [];
+      return [row.name, row.supplierDescription, row.purchaseSource, ...components]
         .filter(Boolean)
         .some((text) => text!.toLowerCase().includes(query));
     });
@@ -128,6 +125,11 @@ export function PricingTable({
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   );
+  // For showing what a new price does to the composites an item goes into.
+  const rowById = useMemo(
+    () => new Map(rows.map((row) => [row.id, row])),
+    [rows],
+  );
 
   return (
     <div className="pb-12">
@@ -146,6 +148,13 @@ export function PricingTable({
             specials={specials}
             historyStart={overview.historyStart}
           />
+          <Button
+            variant="outline"
+            onClick={() => setDialog({ mode: "create", composite: true })}
+          >
+            <BlendIcon />
+            Composite
+          </Button>
           <Button
             onClick={() => setDialog({ mode: "create", otherSupplier: true })}
           >
@@ -263,6 +272,7 @@ export function PricingTable({
                       }
                       referenceName={reference?.name}
                       referenceAlcoholPrice={reference?.alcoholPrice ?? null}
+                      rowById={rowById}
                       onEdit={() =>
                         setDialog({
                           mode: "edit",
@@ -298,15 +308,17 @@ function PricingTableRow({
   pricingCategory,
   referenceName,
   referenceAlcoholPrice,
+  rowById,
   onEdit,
 }: {
   row: PricingRow;
   pricingCategory?: PricingCategory;
   referenceName?: string;
   referenceAlcoholPrice: number | null;
+  rowById: Map<number, PricingRow>;
   onEdit: () => void;
 }) {
-  const { signals } = row;
+  const { signals, composite } = row;
   return (
     <tr className="align-middle">
       <td className="px-3 py-2">
@@ -340,6 +352,12 @@ function PricingTableRow({
               {row.special && (
                 <SpecialBadge className="h-auto px-1.5 py-0.5 text-[11px]" />
               )}
+              {composite && (
+                <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                  <BlendIcon className="size-3" />
+                  Composite
+                </span>
+              )}
               {pricingCategory && (
                 <Tooltip>
                   <TooltipTrigger
@@ -360,11 +378,29 @@ function PricingTableRow({
                 </Tooltip>
               )}
             </div>
-            <p className="hidden truncate text-xs text-muted-foreground sm:block">
-              {row.purchaseSource ?? row.supplierDescription ?? "Not at Rust"}
-              {row.portions != null &&
-                ` · ${formatNumber(row.portions, 1)} portions`}
-            </p>
+            {composite ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {composite.components.length > 0
+                  ? composite.components
+                      .map(
+                        (component) =>
+                          `${formatNumber(component.quantity, 2)}× ${component.name}`,
+                      )
+                      .join(" · ")
+                  : "Nothing in it yet"}
+              </p>
+            ) : (
+              <p className="hidden truncate text-xs text-muted-foreground sm:block">
+                {row.purchaseSource ?? row.supplierDescription ?? "Not at Rust"}
+                {row.portions != null &&
+                  ` · ${formatNumber(row.portions, 1)} portions`}
+              </p>
+            )}
+            {row.usedIn.length > 0 && (
+              <p className="truncate text-xs text-muted-foreground">
+                In {row.usedIn.map((use) => use.name).join(", ")}
+              </p>
+            )}
             <Signals
               row={row}
               referenceName={referenceName}
@@ -374,7 +410,7 @@ function PricingTableRow({
         </div>
       </td>
       <td className="hidden px-2 py-2 text-right tabular-nums md:table-cell">
-        {formatPrice(row.purchasePrice)}
+        {!composite && formatPrice(row.purchasePrice)}
         {row.manualPurchasePrice != null && row.catalogPrice != null && (
           <p className="text-xs text-muted-foreground">
             Rust {formatPrice(row.catalogPrice)}
@@ -384,16 +420,28 @@ function PricingTableRow({
       <td className="hidden px-2 py-2 text-right tabular-nums sm:table-cell">
         {formatPrice(row.cost)}
       </td>
-      <td
-        className="px-2 py-2 text-right tabular-nums"
-        title={
-          row.advice != null ? `Unrounded ${formatNumber(row.advice, 3)}` : undefined
-        }
-      >
-        {formatPrice(row.adviceRounded)}
-      </td>
+      {composite ? (
+        <td
+          className="px-2 py-2 text-right tabular-nums"
+          title="What the components sell for together"
+        >
+          {formatPrice(composite.sum)}
+          <p className="text-xs text-muted-foreground">sum</p>
+        </td>
+      ) : (
+        <td
+          className="px-2 py-2 text-right tabular-nums"
+          title={
+            row.advice != null
+              ? `Unrounded ${formatNumber(row.advice, 3)}`
+              : undefined
+          }
+        >
+          {formatPrice(row.adviceRounded)}
+        </td>
+      )}
       <td className="px-2 py-2">
-        <PriceInput row={row} />
+        <PriceInput row={row} rowById={rowById} />
       </td>
       <td
         className={cn(
@@ -488,7 +536,13 @@ function Signals({
   );
 }
 
-function PriceInput({ row }: { row: PricingRow }) {
+function PriceInput({
+  row,
+  rowById,
+}: {
+  row: PricingRow;
+  rowById: Map<number, PricingRow>;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const value = draft ?? formatInputPrice(row.salePrice);
@@ -518,14 +572,35 @@ function PriceInput({ row }: { row: PricingRow }) {
     else save(price);
   }
 
-  const tone = priceToneStyle(row.salePrice, row.advice);
+  const sum = row.composite?.sum ?? null;
+  const tone = row.composite
+    ? sumToneStyle(row.salePrice, sum)
+    : priceToneStyle(row.salePrice, row.advice);
 
-  const canUseAdvice =
-    row.adviceRounded != null &&
-    Math.abs(row.adviceRounded - (row.salePrice ?? -1)) >= 0.005;
+  // A composite's suggestion is its sum; everything else has the advice.
+  const suggested = row.composite ? sum : row.adviceRounded;
+  const canUseSuggestion =
+    suggested != null && Math.abs(suggested - (row.salePrice ?? -1)) >= 0.005;
+  const suggestion = row.composite ? "sum" : "advice";
+
+  // While a new price is typed: what it does to the composites it goes in.
+  const typed = draft != null ? parseTypedNumber(draft) : null;
+  const impact =
+    typed != null && typed >= 0 && Math.abs(typed - (row.salePrice ?? -1)) >= 0.005
+      ? row.usedIn.flatMap((use) => {
+          const composite = rowById.get(use.id)?.composite;
+          if (!composite) return [];
+          return [
+            {
+              ...use,
+              after: sumWithPrice(composite.components, row.id, typed),
+            },
+          ];
+        })
+      : [];
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="relative flex items-center gap-1">
       <Input
         value={value}
         onChange={(e) => setDraft(e.target.value)}
@@ -544,29 +619,50 @@ function PriceInput({ row }: { row: PricingRow }) {
         title={tone?.title}
         className={cn("h-7 w-16 px-1.5 text-right tabular-nums", tone?.className)}
       />
-      {canUseAdvice && (
+      {canUseSuggestion && (
         <Button
           variant="ghost"
           size="icon-sm"
-          title={`Use advice (${formatPrice(row.adviceRounded)})`}
-          aria-label={`Use advice for ${row.name}`}
+          title={`Use ${suggestion} (${formatPrice(suggested)})`}
+          aria-label={`Use ${suggestion} for ${row.name}`}
           disabled={pending}
-          onClick={() => save(row.adviceRounded)}
+          onClick={() => save(suggested)}
         >
           <ArrowLeftIcon />
         </Button>
       )}
-      {row.signals.costChanged && row.salePrice != null && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Keep this price at the new cost"
-          aria-label={`Keep the price of ${row.name}`}
-          disabled={pending}
-          onClick={() => save(row.salePrice)}
+      {(row.signals.costChanged || row.signals.sumChanged) &&
+        row.salePrice != null && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={`Keep this price at the new ${row.signals.sumChanged ? "sum" : "cost"}`}
+            aria-label={`Keep the price of ${row.name}`}
+            disabled={pending}
+            onClick={() => save(row.salePrice)}
+          >
+            <CheckIcon />
+          </Button>
+        )}
+      {impact.length > 0 && (
+        <div
+          role="status"
+          className="absolute top-full left-0 z-30 mt-1 w-64 space-y-1 rounded-md border bg-popover p-2 text-xs shadow-md"
         >
-          <CheckIcon />
-        </Button>
+          <p className="font-medium">Also changes</p>
+          {impact.map((use) => (
+            <div key={use.id} className="tabular-nums">
+              <p className="truncate">{use.name}</p>
+              <p className="text-muted-foreground">
+                Sum {formatPrice(use.sum)} → {formatPrice(use.after)} · price{" "}
+                {formatPrice(use.salePrice)}
+              </p>
+            </div>
+          ))}
+          <p className="text-muted-foreground">
+            Their own prices stay as they are until you change them.
+          </p>
+        </div>
       )}
     </div>
   );
