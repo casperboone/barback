@@ -3,14 +3,10 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArchiveIcon,
-  ArchiveRestoreIcon,
   BanknoteIcon,
   Loader2Icon,
   PackageIcon,
-  PlusIcon,
   SparklesIcon,
-  Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { OpenItemLink } from "@/components/item-links";
@@ -20,19 +16,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { PickerProduct } from "@/lib/assortment/queries";
 import { suggestQueries } from "@/lib/images/search";
 import {
@@ -54,12 +42,15 @@ import { parseContents } from "@/lib/pricing/contents";
 import { ImagePicker } from "@/app/order-list/image-picker";
 import { ProductPicker } from "@/app/order-list/product-picker";
 import { SalePriceHistoryList } from "@/app/pricing/sale-price-history";
+import { loadItemDialog, saveItem } from "./actions";
+import { CompositeForm } from "./composite-form";
 import {
-  deleteItem,
-  loadItemDialog,
-  saveItem,
-  setItemArchived,
-} from "./actions";
+  ItemDialogFooter,
+  PANEL,
+  PANELS,
+  SectionHeading,
+  SelectField,
+} from "./dialog-parts";
 
 const NEW_CATEGORY = "new";
 const NONE = "none";
@@ -74,6 +65,8 @@ export type ItemDialogState =
       categoryId?: number;
       // What we buy somewhere other than Rust Food, so without a product link.
       otherSupplier?: boolean;
+      // Something we sell that's made of other items, like a gin-tonic.
+      composite?: boolean;
     }
   | { mode: "edit"; itemId: number; section?: "item" | "pricing" };
 
@@ -127,6 +120,7 @@ function ItemDialogBody({
 }) {
   const [data, setData] = useState<ItemDialogData | null>(null);
   const itemId = state.mode === "edit" ? state.itemId : undefined;
+  const composite = state.mode === "create" && !!state.composite;
 
   useEffect(() => {
     let cancelled = false;
@@ -135,7 +129,7 @@ function ItemDialogBody({
       toast.error(error);
       onClose();
     };
-    loadItemDialog(itemId).then(
+    loadItemDialog(itemId, { composite }).then(
       (result) => {
         if (!result.ok) fail(result.error);
         else if (!cancelled) setData(result.data);
@@ -156,6 +150,9 @@ function ItemDialogBody({
         <DialogTitle>Loading…</DialogTitle>
       </div>
     );
+  }
+  if (data.composite) {
+    return <CompositeForm state={state} data={data} onClose={onClose} />;
   }
   return <ItemForm state={state} data={data} onClose={onClose} />;
 }
@@ -347,34 +344,6 @@ function ItemForm({
     });
   }
 
-  function onArchive() {
-    if (!item) return;
-    const archived = item.archivedAt !== null;
-    startTransition(async () => {
-      const result = await setItemArchived(item.id, !archived);
-      if (result.ok) {
-        toast.success(archived ? "Item restored" : "Item archived");
-        onClose();
-      } else {
-        toast.error(result.error);
-      }
-    });
-  }
-
-  function onDelete() {
-    if (!item) return;
-    if (!confirm(`Delete “${item.name}” permanently?`)) return;
-    startTransition(async () => {
-      const result = await deleteItem(item.id);
-      if (result.ok) {
-        toast.success("Item deleted");
-        onClose();
-      } else {
-        toast.error(result.error);
-      }
-    });
-  }
-
   return (
     <>
       <DialogHeader className="shrink-0">
@@ -435,9 +404,7 @@ function ItemForm({
         onSubmit={onSubmit}
         className="flex min-h-0 min-w-0 flex-1 flex-col"
       >
-        {/* Stacked, this scrolls as a whole. Side by side, each panel scrolls
-            on its own, and the panels run from the header to the footer. */}
-        <div className="-mx-4 grid min-h-0 flex-1 grid-cols-1 content-start items-start gap-6 overflow-x-hidden overflow-y-auto border-t px-4 pb-4 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:content-stretch lg:items-stretch lg:gap-0 lg:divide-x lg:overflow-hidden lg:px-0 lg:pb-0">
+        <div className={PANELS}>
           <section ref={itemSection} className={PANEL}>
             <SectionHeading
               icon={PackageIcon}
@@ -732,6 +699,24 @@ function ItemForm({
               )}
             </div>
 
+            {data.usedIn.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Used in</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.usedIn.map((composite) => (
+                    <OpenItemLink
+                      key={composite.id}
+                      itemId={composite.id}
+                      label={`${formatNumber(composite.quantity, 2)}× in ${composite.name}`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A new sale price changes what these add up to.
+                </p>
+              </div>
+            )}
+
             {item && (
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Sale price history</p>
@@ -750,102 +735,13 @@ function ItemForm({
           </section>
         </div>
 
-        <DialogFooter className="shrink-0 flex-row items-center justify-between sm:justify-between">
-          <div className="flex gap-2">
-            {item && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onArchive}
-                  disabled={pending}
-                >
-                  {item.archivedAt ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-                  {item.archivedAt ? "Restore" : "Archive"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={onDelete}
-                  disabled={pending}
-                  aria-label="Delete item"
-                >
-                  <Trash2Icon />
-                </Button>
-              </>
-            )}
-          </div>
-          <Button type="submit" disabled={pending}>
-            {pending ? (
-              <Loader2Icon className="animate-spin" />
-            ) : (
-              !item && <PlusIcon />
-            )}
-            {item ? "Save" : "Add item"}
-          </Button>
-        </DialogFooter>
+        <ItemDialogFooter
+          item={item}
+          pending={pending}
+          startTransition={startTransition}
+          onClose={onClose}
+        />
       </form>
     </>
-  );
-}
-
-const PANEL =
-  "space-y-4 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:px-4 lg:pb-4";
-
-// Stays in view while its section scrolls. The solid layer keeps the fields
-// from showing through the tint, which matches the dialog's footer.
-function SectionHeading({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="sticky top-0 z-10 -mx-4 bg-popover">
-      <div className="flex items-center gap-2.5 border-b bg-muted/50 px-4 py-2.5">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-muted-foreground">
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0">
-          <h3 className="text-sm leading-tight font-semibold">{title}</h3>
-          {/* On a phone this band stays pinned, so it has to stay short. */}
-          <p className="hidden text-xs text-muted-foreground lg:block">
-            {description}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SelectField({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <Select
-      items={options}
-      value={value}
-      onValueChange={(next) => onChange(String(next))}
-    >
-      <SelectTrigger className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

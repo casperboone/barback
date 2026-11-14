@@ -26,7 +26,10 @@ export default async function PricingCategoriesPage() {
       settings={settings}
       // Only something with alcohol can be the yardstick for alcohol.
       referenceCandidates={rows
-        .filter((row) => row.alcoholPercentage && !row.notForSale)
+        .filter(
+          (row) =>
+            row.kind === "product" && row.alcoholPercentage && !row.notForSale,
+        )
         .map((row) => ({ id: row.id, name: row.name }))}
     />
   );

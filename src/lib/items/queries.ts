@@ -1,9 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assortmentCategories,
   assortmentItemImages,
   assortmentItems,
+  compositeComponents,
   supplierProducts,
 } from "@/db/schema";
 import { getCategories } from "@/lib/assortment/queries";
@@ -14,11 +15,15 @@ import {
 } from "@/lib/products/purchases";
 import { getProductPriceChanges } from "@/lib/products/queries";
 import {
+  getPricedProducts,
   getPricingCategories,
   getPricingItem,
   getPricingSettings,
   getSalePriceHistory,
 } from "@/lib/pricing/queries";
+
+// Items with a dialog and a page of their own; notes have neither.
+const WITH_PAGE = inArray(assortmentItems.kind, ["product", "composite"]);
 
 // Where a supplier product leads to in our own assortment. Usually one item,
 // but the same product can be sold as several, like the tap and the OWEE beer.
@@ -95,10 +100,7 @@ export async function getItemLinksByItemNo() {
 
 export async function getItemName(itemId: number) {
   const item = await db.query.assortmentItems.findFirst({
-    where: and(
-      eq(assortmentItems.id, itemId),
-      eq(assortmentItems.kind, "product")
-    ),
+    where: and(eq(assortmentItems.id, itemId), WITH_PAGE),
     columns: { name: true },
   });
   return item?.name ?? null;
@@ -126,9 +128,7 @@ async function getEditableItem(itemId: number) {
       assortmentItemImages,
       eq(assortmentItemImages.itemId, assortmentItems.id)
     )
-    .where(
-      and(eq(assortmentItems.id, itemId), eq(assortmentItems.kind, "product"))
-    )
+    .where(and(eq(assortmentItems.id, itemId), WITH_PAGE))
     .limit(1);
   if (!row) return null;
 
@@ -140,7 +140,47 @@ export type EditableItem = NonNullable<
   Awaited<ReturnType<typeof getEditableItem>>
 >;
 
-export async function getItemDialogData(itemId?: number) {
+// The composites an item goes into, for listing with it. Archived composites
+// don't count; they aren't sold.
+export async function getCompositesUsing(itemId: number) {
+  return db
+    .select({
+      id: assortmentItems.id,
+      name: assortmentItems.name,
+      quantity: compositeComponents.quantity,
+    })
+    .from(compositeComponents)
+    .innerJoin(
+      assortmentItems,
+      eq(assortmentItems.id, compositeComponents.compositeId)
+    )
+    .where(
+      and(
+        eq(compositeComponents.componentId, itemId),
+        isNull(assortmentItems.archivedAt)
+      )
+    )
+    .orderBy(asc(assortmentItems.name));
+}
+
+// What a composite is made of, in the order it was put together.
+async function getComponents(compositeId: number) {
+  return db
+    .select({
+      componentId: compositeComponents.componentId,
+      quantity: compositeComponents.quantity,
+    })
+    .from(compositeComponents)
+    .where(eq(compositeComponents.compositeId, compositeId))
+    .orderBy(asc(compositeComponents.position), asc(compositeComponents.id));
+}
+
+// A composite's dialog also needs what can go into it, with prices and costs
+// to add up while you put it together.
+export async function getItemDialogData(
+  itemId?: number,
+  options: { composite?: boolean } = {}
+) {
   const [item, salePriceHistory, orderCategories, pricingCategories, settings] =
     await Promise.all([
       itemId != null ? getEditableItem(itemId) : null,
@@ -149,14 +189,41 @@ export async function getItemDialogData(itemId?: number) {
       getPricingCategories(),
       getPricingSettings(),
     ]);
+  const composite =
+    item != null ? item.kind === "composite" : !!options.composite;
+  const [components, componentOptions, usedIn] = await Promise.all([
+    item && composite ? getComponents(item.id) : [],
+    composite ? getComponentOptions() : [],
+    item && !composite ? getCompositesUsing(item.id) : [],
+  ]);
   return {
     item,
+    composite,
     salePriceHistory,
     orderCategories,
     pricingCategories,
     priceRounding: settings.priceRounding,
+    components,
+    componentOptions,
+    usedIn,
   };
 }
+
+async function getComponentOptions() {
+  const rows = await getPricedProducts();
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    categoryName: row.orderCategoryName,
+    salePrice: row.salePrice,
+    cost: row.cost,
+    archived: row.archivedAt !== null,
+  }));
+}
+
+export type ComponentOption = Awaited<
+  ReturnType<typeof getComponentOptions>
+>[number];
 
 export type ItemDialogData = Awaited<ReturnType<typeof getItemDialogData>>;
 

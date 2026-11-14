@@ -12,13 +12,15 @@ import {
 } from "@/components/special-badge";
 import { formatDate, formatPercent, formatPrice } from "@/lib/format";
 import { priceTone } from "./calc";
+import { pricesDiffer } from "./composite";
 import type { PricingOverview, PricingRow } from "./queries";
 
 // The price list as a printable PDF, in the order page's categories like the
 // pricing screen. Plain on purpose: it's for reading prices off, not for show.
 // `details` adds what we make on each item, for ourselves rather than the bar.
 // Specials are left out, listed alone or marked, like the screen's filter.
-// Given a date, each price is shown next to the one it had then.
+// Given a date, each price is shown next to the one it had then. Composites
+// are listed like anything else; their colour compares with their sum.
 
 const MUTED = "#6b7280";
 // The special badge's colours on screen (Tailwind's violet).
@@ -308,9 +310,11 @@ function PriceList({
                   )}
                   {details && (
                     <Text style={pricingCategory}>
-                      {row.pricingCategoryId != null
-                        ? categoryNames.get(row.pricingCategoryId)
-                        : "—"}
+                      {row.composite
+                        ? "Composite"
+                        : row.pricingCategoryId != null
+                          ? categoryNames.get(row.pricingCategoryId)
+                          : "—"}
                     </Text>
                   )}
                   {comparison && (
@@ -356,7 +360,7 @@ function PriceList({
               <View style={[styles.swatch, TONES.above]} />
               <Text>above advice ·</Text>
               <View style={[styles.swatch, TONES.below]} />
-              <Text>below advice</Text>
+              <Text>below advice · composites: against their sum</Text>
             </View>
           ) : (
             <Text>Prices include VAT</Text>
@@ -373,7 +377,14 @@ function PriceList({
 }
 
 // Coloured like the price inputs on screen: green clearly above the advice,
-// red clearly below it, and plain when close to it or without advice.
+// red clearly below it, and plain when close to it or without advice. A
+// composite has its components' sum instead, where any difference counts.
+function toneOf(row: PricingRow) {
+  if (!row.composite) return priceTone(row.salePrice, row.advice);
+  if (!pricesDiffer(row.salePrice, row.composite.sum)) return null;
+  return row.salePrice! > row.composite.sum! ? "above" : "below";
+}
+
 function TonedPrice({
   row,
   changed,
@@ -383,7 +394,7 @@ function TonedPrice({
   changed: boolean;
   narrow: boolean;
 }) {
-  const tone = priceTone(row.salePrice, row.advice);
+  const tone = toneOf(row);
   return (
     <View style={[styles.priceCell, narrow ? styles.narrow : {}]}>
       <Text

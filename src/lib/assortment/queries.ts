@@ -1,4 +1,4 @@
-import { asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import type { DiscountStatus } from "@/lib/products/discount-types";
 import {
@@ -79,9 +79,13 @@ async function selectItems(archived: boolean) {
       eq(assortmentItemImages.itemId, assortmentItems.id)
     )
     .where(
-      archived
-        ? isNotNull(assortmentItems.archivedAt)
-        : isNull(assortmentItems.archivedAt)
+      and(
+        // Composites are never bought, so they stay off the order list.
+        inArray(assortmentItems.kind, ["product", "note"]),
+        archived
+          ? isNotNull(assortmentItems.archivedAt)
+          : isNull(assortmentItems.archivedAt)
+      )
     )
     .orderBy(
       asc(assortmentCategories.position),
@@ -97,6 +101,8 @@ function groupByCategory(
 ): AssortmentCategoryWithItems[] {
   const categories: AssortmentCategoryWithItems[] = [];
   for (const row of rows) {
+    // Already left out by the query; this tells TypeScript.
+    if (row.kind === "composite") continue;
     let category = categories.find((c) => c.id === row.categoryId);
     if (!category) {
       category = { id: row.categoryId, name: row.categoryName, items: [] };
