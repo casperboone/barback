@@ -20,10 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { formatNumber, formatPrice } from "@/lib/format";
 import type { OrderReview, ReviewLine } from "@/lib/orders/drafts";
-import { orderLabel } from "@/lib/orders/reference";
+import { orderLabel, RUST_CHECKOUT } from "@/lib/orders/reference";
 import { sendOrderToCart, type CartSubmitResult } from "../actions";
-
-const RUST_CHECKOUT = "https://b2b-rustfood.dinonline.nl/orderconfirm";
 
 const amounts = (lines: ReviewLine[]) =>
   lines.map((line) => ({ id: line.id, quantity: line.quantity }));

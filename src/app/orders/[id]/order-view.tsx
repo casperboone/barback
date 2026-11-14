@@ -11,6 +11,7 @@ import {
   PencilIcon,
   PlusIcon,
   RotateCcwIcon,
+  ShoppingCartIcon,
   Trash2Icon,
   UnlinkIcon,
   XIcon,
@@ -23,12 +24,13 @@ import type { OrderLine } from "@/db/schema";
 import { formatDate, formatInputNumber, formatNumber, formatPrice } from "@/lib/format";
 import type { LineProgress } from "@/lib/orders/matching";
 import type { OrderDetail } from "@/lib/orders/queries";
-import { orderLabel, orderReference } from "@/lib/orders/reference";
+import { orderLabel, orderReference, RUST_CHECKOUT } from "@/lib/orders/reference";
 import { parseTypedNumber } from "@/lib/numbers";
 import { OneOffDialog } from "@/app/order-list/one-off-dialog";
 import {
   deleteDraft,
   linkDocument,
+  readdOrderToCart,
   rejectSuggestion,
   renameOrder,
   reorderShortage,
@@ -93,6 +95,13 @@ export function OrderView({ detail }: { detail: OrderDetail }) {
       !line.resolution &&
       progress.lines.find((row) => row.id === line.id)?.status !== "delivered",
   );
+  // What went to the cart, so what re-adding puts back. One product per
+  // item number: the cart takes a repeat as the same product.
+  const sentCount = new Set(
+    lines
+      .filter((line) => line.itemNo && line.sentQuantity > 0)
+      .map((line) => line.itemNo),
+  ).size;
   const total = lines.reduce(
     (sum, line) => sum + line.quantity * (line.unitPrice ?? 0),
     0,
@@ -149,6 +158,7 @@ export function OrderView({ detail }: { detail: OrderDetail }) {
             {isDraft ? "Review" : `Send the rest (${unsent.length})`}
           </Button>
         )}
+        {!isDraft && sentCount > 0 && <ReaddToCart orderId={order.id} count={sentCount} />}
         {order.status === "sent" && (
           <Button
             variant="ghost"
@@ -280,6 +290,68 @@ export function OrderView({ detail }: { detail: OrderDetail }) {
         onClose={() => setAddingOneOff(false)}
       />
     </div>
+  );
+}
+
+// For when the cart at Rust was emptied before the order was placed.
+function ReaddToCart({ orderId, count }: { orderId: number; count: number }) {
+  const [pending, startTransition] = useTransition();
+  // Asked on the page itself: window.confirm doesn't show everywhere, and
+  // where it doesn't, it quietly answers no.
+  const [confirming, setConfirming] = useState(false);
+  const products = `${count} product${count === 1 ? "" : "s"}`;
+
+  function readd() {
+    setConfirming(false);
+    startTransition(async () => {
+      const result = await readdOrderToCart(orderId);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      for (const line of result.failed) {
+        toast.error(`${line.name} didn't go in`, { description: line.error });
+      }
+      if (result.added === 0) return;
+      const { totalItems, totalPrice } = result.cart ?? {};
+      toast.success(
+        `${result.added} product${result.added === 1 ? "" : "s"} back in the cart`,
+        {
+          description:
+            totalItems != null
+              ? `Cart at Rust Food: ${totalItems} product${totalItems === 1 ? "" : "s"}${totalPrice ? ` · ${totalPrice}` : ""}`
+              : undefined,
+          action: {
+            label: "Open cart",
+            onClick: () => window.open(RUST_CHECKOUT, "_blank", "noreferrer"),
+          },
+        },
+      );
+    });
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border px-2 py-1">
+        <span className="text-sm">Add {products} to Rust&apos;s cart again?</span>
+        <Button size="sm" onClick={readd}>
+          Yes, add
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Button
+      variant="outline"
+      disabled={pending}
+      onClick={() => setConfirming(true)}
+    >
+      <ShoppingCartIcon />
+      {pending ? "Adding…" : "Add to cart again"}
+    </Button>
   );
 }
 

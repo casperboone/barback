@@ -1,3 +1,6 @@
+// Where the cart is checked out and the order placed.
+export const RUST_CHECKOUT = "https://b2b-rustfood.dinonline.nl/orderconfirm";
+
 // What goes in "Uw referentie" at Rust's checkout. It's pasted by hand: the
 // portal keeps that field per login, so the app can't set it for your browser.
 export function orderReference(orderId: number) {
