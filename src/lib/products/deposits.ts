@@ -26,15 +26,25 @@ export type DepositLine = {
 
 export type DepositKind = "keg" | "co2" | "crate" | "can" | "bottle" | "other";
 
-// In the order the page shows them: the expensive ones first.
-export const DEPOSIT_KINDS: { kind: DepositKind; label: string }[] = [
+// In the order the page shows them: the expensive ones first. Cans go back
+// to Statiegeld Nederland, which refunds them directly, so Rust never owes
+// that deposit back and it stays out of the balance.
+export const DEPOSIT_KINDS: {
+  kind: DepositKind;
+  label: string;
+  returnedTo?: string;
+}[] = [
   { kind: "keg", label: "Kegs" },
   { kind: "co2", label: "CO₂ cylinders" },
   { kind: "crate", label: "Crates" },
-  { kind: "can", label: "Cans" },
+  { kind: "can", label: "Cans", returnedTo: "Statiegeld Nederland" },
   { kind: "bottle", label: "Bottles" },
   { kind: "other", label: "Other" },
 ];
+
+const RETURNED_ELSEWHERE = new Set(
+  DEPOSIT_KINDS.filter((kind) => kind.returnedTo).map((kind) => kind.kind),
+);
 
 // Rust's descriptions only say the amount ("EMBALLAGE EURO 30,00"), so what
 // each item number stands for comes from the product line it follows on the
@@ -77,12 +87,16 @@ export type DepositRow = DepositCounts & {
 export type DepositGroup = DepositCounts & {
   kind: DepositKind;
   label: string;
+  // Who refunds this deposit when it isn't Rust; such a group is left out of
+  // the balance.
+  returnedTo: string | null;
   rows: DepositRow[];
 };
 
 export type DepositSummary = {
   groups: DepositGroup[];
-  // Units of different things don't add up, so the total is money only.
+  // Units of different things don't add up, so the total is money only, and
+  // only what Rust owes back.
   balance: number;
 };
 
@@ -93,6 +107,12 @@ const roundCents = (value: number) => Math.round(value * 100) / 100;
 function direction(line: DepositLine) {
   const charged = line.documentType === "invoice" ? line.quantity > 0 : line.quantity < 0;
   return { charged, units: Math.abs(line.quantity) };
+}
+
+// Whether Rust is the one to refund it, so it belongs in the balance.
+function owedByRust(line: DepositLine) {
+  const kind = DEPOSIT_ITEMS[line.itemNo]?.kind ?? "other";
+  return !RETURNED_ELSEWHERE.has(kind);
 }
 
 function signedAmount(line: DepositLine) {
@@ -137,7 +157,7 @@ export function summarizeDeposits(lines: DepositLine[]): DepositSummary {
     rows.set(line.itemNo, row);
   }
 
-  const groups = DEPOSIT_KINDS.flatMap(({ kind, label }) => {
+  const groups = DEPOSIT_KINDS.flatMap(({ kind, label, returnedTo }) => {
     const members = [...rows.values()]
       .filter((row) => row.kind === kind)
       .map(rounded)
@@ -155,12 +175,18 @@ export function summarizeDeposits(lines: DepositLine[]): DepositSummary {
       sum.balance += row.balance;
       return sum;
     }, emptyCounts());
-    return [rounded({ kind, label, rows: members, ...totals })];
+    return [
+      rounded({ kind, label, returnedTo: returnedTo ?? null, rows: members, ...totals }),
+    ];
   });
 
   return {
     groups,
-    balance: roundCents(groups.reduce((sum, group) => sum + group.balance, 0)),
+    balance: roundCents(
+      groups
+        .filter((group) => group.returnedTo == null)
+        .reduce((sum, group) => sum + group.balance, 0),
+    ),
   };
 }
 
@@ -173,7 +199,8 @@ export type BalanceBucket = {
   balance: number;
 };
 
-// The money balance at the end of each period, for the chart. A range that
+// The money balance at the end of each period, for the chart, leaving out
+// what another party refunds. A range that
 // starts later carries everything before it as its opening balance.
 export function depositBalanceHistory(
   lines: DepositLine[],
@@ -181,7 +208,7 @@ export function depositBalanceHistory(
   granularity: Granularity,
   today: string,
 ): BalanceBucket[] {
-  const points = lines.map((line) => ({
+  const points = lines.filter(owedByRust).map((line) => ({
     day: line.day,
     quantity: signedAmount(line),
     documentNo: line.documentNo,
@@ -201,4 +228,17 @@ export function depositBalanceHistory(
       balance: roundCents(balance),
     };
   });
+}
+
+// The calendar years with deposit lines, newest first, for the year filter.
+export function depositYears(lines: DepositLine[]): number[] {
+  const years = new Set(lines.map((line) => Number(line.day.slice(0, 4))));
+  return [...years].sort((a, b) => b - a);
+}
+
+// Just one year, which then starts from nothing: deposit charged before it
+// and returned during it comes out below zero.
+export function linesInYear(lines: DepositLine[], year: number): DepositLine[] {
+  const prefix = `${year}-`;
+  return lines.filter((line) => line.day.startsWith(prefix));
 }

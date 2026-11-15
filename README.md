@@ -381,6 +381,12 @@ deposit item within it, it gives the units charged, returned and still out,
 what that comes to, and when the item last appeared. A chart shows how the
 money balance moved, from the start, over 3 years or over 12 months.
 
+The year bar above it narrows the whole page to one year, which then starts
+from nothing on 1 January: deposit charged earlier and returned that year comes
+out below zero. That's the useful view from 2026 on, since we only buy
+everything at Rust since February 2026; before that, empties could go back to
+another supplier.
+
 Every invoice line with `EMBALLAGE` in its description is a deposit. On an
 invoice a positive quantity is charged and a negative one is a return. A credit
 note refunds with a positive quantity, the way Rust refunds a pile of kegs at
@@ -393,8 +399,9 @@ under Other with its price.
 
 The balance counts from the first imported document, so anything out before
 then is unknown and a type can come out below zero. Soft drink crates do: far
-more have come back than were charged since 2018. Can deposit is charged but
-hardly ever comes back through Rust. Open orders aren't included until they are
+more have come back than were charged since 2018. Cans go back to Statiegeld
+Nederland, which refunds them directly, so can deposit is shown as paid but
+left out of the total and the chart. Open orders aren't included until they are
 invoiced. Amounts exclude VAT. The calculation is in
 `src/lib/products/deposits.ts`, with its tests next to it.
 
