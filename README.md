@@ -399,8 +399,9 @@ under Other with its price.
 
 The balance counts from the first imported document, so anything out before
 then is unknown and a type can come out below zero. Soft drink crates do: far
-more have come back than were charged since 2018. Can deposit is charged but
-hardly ever comes back through Rust. Open orders aren't included until they are
+more have come back than were charged since 2018. Cans go back to Statiegeld
+Nederland, which refunds them directly, so can deposit is shown as paid but
+left out of the total and the chart. Open orders aren't included until they are
 invoiced. Amounts exclude VAT. The calculation is in
 `src/lib/products/deposits.ts`, with its tests next to it.
 

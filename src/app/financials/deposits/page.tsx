@@ -209,20 +209,42 @@ export default async function DepositsPage(
               </span>
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">{group.label}</p>
-                <p className="text-2xl font-semibold">
-                  <Out counts={group} />
-                  <span className="ml-1 text-sm font-normal text-muted-foreground">
-                    out
-                  </span>
-                </p>
-                <p
-                  className={cn(
-                    "text-xs tabular-nums",
-                    group.balance < 0 ? "text-muted-foreground" : "text-foreground",
-                  )}
-                >
-                  {formatPrice(group.balance)}
-                </p>
+                {group.returnedTo ? (
+                  // Refunded by someone else, so nothing is out at Rust.
+                  <>
+                    <p className="text-2xl font-semibold">
+                      <span className="tabular-nums">
+                        {formatNumber(group.out, 1)}
+                      </span>
+                      <span className="ml-1 text-sm font-normal text-muted-foreground">
+                        paid
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="tabular-nums">
+                        {formatPrice(group.balance)}
+                      </span>
+                      , back via {group.returnedTo}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-semibold">
+                      <Out counts={group} />
+                      <span className="ml-1 text-sm font-normal text-muted-foreground">
+                        out
+                      </span>
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs tabular-nums",
+                        group.balance < 0 ? "text-muted-foreground" : "text-foreground",
+                      )}
+                    >
+                      {formatPrice(group.balance)}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -272,7 +294,14 @@ export default async function DepositsPage(
           {groups.map((group) => (
             <TableBody key={group.kind} className="border-t first:border-t-0">
               <TableRow className="bg-muted/30 font-medium hover:bg-muted/30">
-                <TableCell>{group.label}</TableCell>
+                <TableCell>
+                  {group.label}
+                  {group.returnedTo && (
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                      back via {group.returnedTo}, not in the total
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="hidden text-right tabular-nums sm:table-cell">
                   {formatNumber(group.charged, 1)}
                 </TableCell>
@@ -280,12 +309,17 @@ export default async function DepositsPage(
                   {formatNumber(group.returned, 1)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Out counts={group} />
+                  {group.returnedTo ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <Out counts={group} />
+                  )}
                 </TableCell>
                 <TableCell
                   className={cn(
                     "text-right tabular-nums",
-                    group.balance < 0 && "text-muted-foreground",
+                    (group.balance < 0 || group.returnedTo) &&
+                      "text-muted-foreground",
                   )}
                 >
                   {formatPrice(group.balance)}
@@ -308,12 +342,17 @@ export default async function DepositsPage(
                     {formatNumber(row.returned, 1)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Out counts={row} />
+                    {group.returnedTo ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <Out counts={row} />
+                    )}
                   </TableCell>
                   <TableCell
                     className={cn(
                       "text-right tabular-nums",
-                      row.balance < 0 && "text-muted-foreground",
+                      (row.balance < 0 || group.returnedTo) &&
+                        "text-muted-foreground",
                     )}
                   >
                     {formatPrice(row.balance)}
@@ -335,7 +374,9 @@ export default async function DepositsPage(
 
       <p className="text-xs text-muted-foreground">
         A credit note counts as a return, the way Rust refunds a pile of kegs
-        at once. What an item number stands for comes from the products it
+        at once. Cans go back to Statiegeld Nederland, which refunds them
+        directly, so their deposit is shown but left out of the total and the
+        chart. What an item number stands for comes from the products it
         follows on the invoices; Rust only calls them &ldquo;EMBALLAGE&rdquo;
         with an amount.
       </p>

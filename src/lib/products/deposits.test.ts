@@ -8,6 +8,7 @@ import {
 } from "./deposits";
 
 const PRICES: Record<string, number> = {
+  "8887": 1.8,
   "8856": 30,
   "8820": 120,
   "8886": 3.9,
@@ -109,6 +110,26 @@ describe("summarizeDeposits", () => {
 
   it("is empty without lines", () => {
     expect(summarizeDeposits([])).toEqual({ groups: [], balance: 0 });
+  });
+});
+
+describe("cans", () => {
+  it("are shown but left out of the balance, since Statiegeld Nederland refunds them", () => {
+    const lines = [line("8856", 1), line("8887", 10)];
+    const { groups, balance } = summarizeDeposits(lines);
+    const cans = groups.find((group) => group.kind === "can");
+    expect(cans).toMatchObject({
+      returnedTo: "Statiegeld Nederland",
+      charged: 10,
+      balance: 18,
+    });
+    expect(groups[0].returnedTo).toBeNull();
+    expect(balance).toBe(30);
+    expect(
+      depositBalanceHistory(lines, { kind: "all" }, "month", "2026-01-20").map(
+        (bucket) => bucket.balance,
+      ),
+    ).toEqual([30]);
   });
 });
 
