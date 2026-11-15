@@ -318,8 +318,8 @@ loaded in the same session first, which the service handles.
 ## Rust Financials
 
 Everything that comes from Rust Food's own bookkeeping sits behind one nav
-entry, since it is secondary to ordering: purchase history, invoices and
-orders.
+entry, since it is secondary to ordering: purchase history, invoices,
+orders, what is outstanding and the deposit balance.
 
 The section header says when the documents last synced, with the import button
 right there, so you can check and top them up from the pages that use the data.
@@ -372,6 +372,31 @@ Credit notes count against the totals. Orders that are not invoiced yet are
 left out, so a recent order only shows up once its invoice arrives. Deposits
 on crates and kegs ("emballage") are excluded by default, with a toggle to
 count them and a column showing what they came to. Amounts exclude VAT.
+
+### Deposits
+
+`/financials/deposits` shows the kegs, CO₂ cylinders, crates, cans and bottles
+we paid deposit ("emballage") on and haven't handed back yet. Per type, and per
+deposit item within it, it gives the units charged, returned and still out,
+what that comes to, and when the item last appeared. A chart shows how the
+money balance moved, from the start, over 3 years or over 12 months.
+
+Every invoice line with `EMBALLAGE` in its description is a deposit. On an
+invoice a positive quantity is charged and a negative one is a return. A credit
+note refunds with a positive quantity, the way Rust refunds a pile of kegs at
+once, and a negative line there counts as charged again. Rust's descriptions
+only give the amount ("EMBALLAGE EURO 30,00"), so the type of each item number
+(8856 is a € 30 beer keg, 8820 a € 120 CO₂ cylinder, 8886 a € 3,90 beer
+crate, 8891 a € 5 soft drink crate, and so on) comes from the product lines
+those deposits follow on the invoices. An item number that isn't listed shows
+under Other with its price.
+
+The balance counts from the first imported document, so anything out before
+then is unknown and a type can come out below zero. Soft drink crates do: far
+more have come back than were charged since 2018. Can deposit is charged but
+hardly ever comes back through Rust. Open orders aren't included until they are
+invoiced. Amounts exclude VAT. The calculation is in
+`src/lib/products/deposits.ts`, with its tests next to it.
 
 ## Supplier import
 

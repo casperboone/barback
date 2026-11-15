@@ -12,6 +12,7 @@ const SECTIONS = [
   { href: "/financials/invoices", label: "Invoices" },
   { href: "/financials/orders", label: "Placed orders" },
   { href: "/financials/outstanding", label: "Outstanding" },
+  { href: "/financials/deposits", label: "Deposits" },
 ];
 
 // Everything that comes from Rust Food's own bookkeeping sits behind one nav
