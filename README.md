@@ -381,6 +381,12 @@ deposit item within it, it gives the units charged, returned and still out,
 what that comes to, and when the item last appeared. A chart shows how the
 money balance moved, from the start, over 3 years or over 12 months.
 
+The year bar above it narrows the whole page to one year, which then starts
+from nothing on 1 January: deposit charged earlier and returned that year comes
+out below zero. That's the useful view from 2026 on, since we only buy
+everything at Rust since February 2026; before that, empties could go back to
+another supplier.
+
 Every invoice line with `EMBALLAGE` in its description is a deposit. On an
 invoice a positive quantity is charged and a negative one is a return. A credit
 note refunds with a positive quantity, the way Rust refunds a pile of kegs at

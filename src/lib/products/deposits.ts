@@ -202,3 +202,16 @@ export function depositBalanceHistory(
     };
   });
 }
+
+// The calendar years with deposit lines, newest first, for the year filter.
+export function depositYears(lines: DepositLine[]): number[] {
+  const years = new Set(lines.map((line) => Number(line.day.slice(0, 4))));
+  return [...years].sort((a, b) => b - a);
+}
+
+// Just one year, which then starts from nothing: deposit charged before it
+// and returned during it comes out below zero.
+export function linesInYear(lines: DepositLine[], year: number): DepositLine[] {
+  const prefix = `${year}-`;
+  return lines.filter((line) => line.day.startsWith(prefix));
+}

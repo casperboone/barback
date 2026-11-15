@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   depositBalanceHistory,
+  depositYears,
+  linesInYear,
   summarizeDeposits,
   type DepositLine,
 } from "./deposits";
@@ -142,5 +144,38 @@ describe("depositBalanceHistory", () => {
       "2026-11-14",
     );
     expect(history.map((bucket) => bucket.balance)).toEqual([30, 30]);
+  });
+});
+
+describe("year filter", () => {
+  const lines = [
+    line("8856", 3, "2025-12-30"),
+    line("8856", -3, "2026-01-05"),
+    line("8820", 1, "2026-03-01"),
+    line("8891", 2, "2024-06-01"),
+  ];
+
+  it("lists the years with lines, newest first", () => {
+    expect(depositYears(lines)).toEqual([2026, 2025, 2024]);
+    expect(depositYears([])).toEqual([]);
+  });
+
+  it("starts a year from nothing, so an earlier charge returned in it goes below zero", () => {
+    const { groups, balance } = summarizeDeposits(linesInYear(lines, 2026));
+    expect(groups.map((group) => [group.kind, group.out])).toEqual([
+      ["keg", -3],
+      ["co2", 1],
+    ]);
+    expect(balance).toBe(30);
+  });
+
+  it("charts a year from zero", () => {
+    const history = depositBalanceHistory(
+      linesInYear(lines, 2026),
+      { kind: "year", year: 2026 },
+      "month",
+      "2026-04-10",
+    );
+    expect(history.map((bucket) => bucket.balance)).toEqual([-90, -90, 30, 30]);
   });
 });

@@ -57,15 +57,18 @@ export function BalanceChart({ histories }: { histories: BalanceHistory[] }) {
 
   return (
     <div className="space-y-3">
-      <ViewTabs
-        label="Date range"
-        current={history.key}
-        onSelect={(next) => {
-          setKey(next);
-          setActive(null);
-        }}
-        views={histories.map((h) => ({ value: h.key, label: h.label }))}
-      />
+      {/* A single year has only itself to show. */}
+      {histories.length > 1 && (
+        <ViewTabs
+          label="Date range"
+          current={history.key}
+          onSelect={(next) => {
+            setKey(next);
+            setActive(null);
+          }}
+          views={histories.map((h) => ({ value: h.key, label: h.label }))}
+        />
+      )}
 
       <p className="text-sm text-muted-foreground">
         <span className="text-base font-semibold text-foreground tabular-nums">
