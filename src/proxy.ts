@@ -1,36 +1,78 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { authMode } from "@/lib/auth/config";
+import { encodeMember, MEMBER_HEADER } from "@/lib/auth/member";
+import {
+  checkSession,
+  findSession,
+  SESSION_COOKIE,
+  sessionCookieOptions,
+} from "@/lib/auth/session";
 
-// The simplest protection that works everywhere: HTTP basic auth with one
-// shared password from the environment. Without APP_PASSWORD (local
-// development) the app stays open.
-export function proxy(request: NextRequest) {
-  const password = process.env.APP_PASSWORD;
-  if (!password) return NextResponse.next();
+// Every page, API route and server action passes through here, so this is the
+// one place that checks the login. Logging in itself happens under /auth,
+// the only part open to everyone.
+export async function proxy(request: NextRequest) {
+  const forwarded = new Headers(request.headers);
+  forwarded.delete(MEMBER_HEADER);
 
-  const header = request.headers.get("authorization");
-  if (header?.startsWith("Basic ")) {
-    const decoded = atob(header.slice(6));
-    const given = decoded.slice(decoded.indexOf(":") + 1);
-    if (matches(given, password)) return NextResponse.next();
+  const mode = authMode();
+  if (mode === "open") return next(forwarded);
+  if (mode === "misconfigured") {
+    return new NextResponse(
+      "Logging in isn't set up: set MY_DWH_CLIENT_ID and MY_DWH_CLIENT_SECRET.",
+      { status: 503 },
+    );
   }
 
-  return new NextResponse("Log in to continue.", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="BarBack", charset="UTF-8"',
-    },
-  });
+  const { pathname } = request.nextUrl;
+  if (pathname === "/auth" || pathname.startsWith("/auth/")) {
+    return next(forwarded);
+  }
+
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = token ? await findSession(token) : null;
+  if (!token || !session) return turnAway(request);
+
+  const check = await checkSession(session);
+  if (check.status === "ended") return turnAway(request);
+
+  forwarded.set(MEMBER_HEADER, encodeMember({ name: session.name }));
+  const response = next(forwarded);
+  if (check.status === "confirmed") {
+    response.cookies.set(
+      SESSION_COOKIE,
+      token,
+      sessionCookieOptions(check.expiresAt),
+    );
+  }
+  return response;
 }
 
-// Compares without leaking the answer through how long it takes.
-function matches(given: string, expected: string) {
-  if (given.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < given.length; i++) {
-    diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-  return diff === 0;
+function next(headers: Headers) {
+  return NextResponse.next({ request: { headers } });
+}
+
+// Someone opening a page goes to My DWH and comes back afterwards; anything
+// else (a server action, an image, a PDF) just gets refused.
+function turnAway(request: NextRequest) {
+  const isPage =
+    request.method === "GET" &&
+    !request.headers.has("next-action") &&
+    request.headers.get("accept")?.includes("text/html");
+
+  const response = isPage
+    ? NextResponse.redirect(loginUrl(request))
+    : new NextResponse("Log in to continue.", { status: 401 });
+  response.cookies.delete(SESSION_COOKIE);
+  return response;
+}
+
+function loginUrl(request: NextRequest) {
+  const url = new URL("/auth/login", request.nextUrl.origin);
+  const { pathname, search } = request.nextUrl;
+  if (pathname !== "/") url.searchParams.set("next", pathname + search);
+  return url;
 }
 
 export const config = {

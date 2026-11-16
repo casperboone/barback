@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppHeader } from "@/components/app-header";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getCurrentMember } from "@/lib/auth/member";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,7 +21,8 @@ export const metadata: Metadata = {
   description: "Supplier catalog, assortment and ordering",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const member = await getCurrentMember();
   return (
     <html
       lang="en"
@@ -28,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col overflow-x-clip bg-muted/30">
         <TooltipProvider>
-          <AppHeader />
+          <AppHeader member={member} />
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
             {children}
           </main>
