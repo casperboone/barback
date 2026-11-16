@@ -488,8 +488,9 @@ way they log in there: with the link or the 6-digit code from the login email.
 Everyone with an active membership gets in; there's no list of users.
 
 - `src/proxy.ts` checks the login on every request, so pages, API routes and
-  server actions are all covered. Someone opening a page without a login goes
-  to My DWH and comes back to that page; anything else gets a `401`.
+  server actions are all covered. Someone opening a page without a login sees
+  a short login screen (`/auth`), goes on to My DWH with "Log in with My DWH"
+  and comes back to that page; anything else gets a `401`.
 - `openid-client` does the OpenID Connect part (authorization code flow with
   PKCE, `state` and `nonce`) in `src/app/auth/login` and `src/app/auth/callback`.
   Members are identified by `sub`, never by email address: members can change

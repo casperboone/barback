@@ -10,16 +10,18 @@ export function AuthNotice({
   actions,
 }: {
   title: string;
-  children: ReactNode;
+  children?: ReactNode;
   actions: { href: string; label: string; primary?: boolean }[];
 }) {
   return (
     <div className="mx-auto mt-12 flex max-w-md flex-col gap-4 rounded-xl border bg-background p-6 shadow-sm sm:mt-20">
       <h1 className="text-lg font-semibold">{title}</h1>
-      <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-        {children}
-      </div>
-      <div className="flex flex-wrap gap-2 pt-2">
+      {children && (
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          {children}
+        </div>
+      )}
+      <div className={children ? "flex flex-wrap gap-2 pt-2" : "flex flex-wrap gap-2"}>
         {actions.map((action) => (
           <Button
             key={action.href}

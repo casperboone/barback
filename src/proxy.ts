@@ -53,8 +53,9 @@ function next(headers: Headers) {
   return NextResponse.next({ request: { headers } });
 }
 
-// Someone opening a page goes to My DWH and comes back afterwards; anything
-// else (a server action, an image, a PDF) just gets refused.
+// Someone opening a page goes to the login screen, then My DWH, and comes back
+// afterwards; anything else (a server action, an image, a PDF) just gets
+// refused.
 function turnAway(request: NextRequest) {
   const isPage =
     request.method === "GET" &&
@@ -69,7 +70,7 @@ function turnAway(request: NextRequest) {
 }
 
 function loginUrl(request: NextRequest) {
-  const url = new URL("/auth/login", request.nextUrl.origin);
+  const url = new URL("/auth", request.nextUrl.origin);
   const { pathname, search } = request.nextUrl;
   if (pathname !== "/") url.searchParams.set("next", pathname + search);
   return url;
