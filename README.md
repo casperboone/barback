@@ -466,9 +466,7 @@ images are cached in the database instead of on disk (serverless has no
 persistent filesystem), and background image fetching uses `after()` so it
 survives the response.
 
-Access is protected by HTTP basic auth in `src/proxy.ts`: set `APP_PASSWORD`
-and the browser asks for it once. Without that variable the app is open, which
-is fine locally but never when hosted.
+Access needs a login with My DWH; see [Logging in](#logging-in).
 
 1. Create a database at [turso.tech](https://turso.tech) and copy its URL
    (`libsql://…`) plus an auth token.
@@ -476,11 +474,56 @@ is fine locally but never when hosted.
    create the tables there.
 3. Push this repository to GitHub and import it in Vercel.
 4. Set the environment variables in Vercel: `SUPPLIER_USERNAME`,
-   `SUPPLIER_PASSWORD`, `APP_PASSWORD`, `DATABASE_URL`, `DATABASE_AUTH_TOKEN`.
+   `SUPPLIER_PASSWORD`, `MY_DWH_CLIENT_ID`, `MY_DWH_CLIENT_SECRET`,
+   `DATABASE_URL`, `DATABASE_AUTH_TOKEN`.
 5. Deploy, open the app, log in and press **Import products**.
 
 Migrations are not run automatically; after a schema change run
 `npm run db:migrate` with the Turso variables in your environment.
+
+## Logging in
+
+Members log in with My DWH (ReMember, DWH's OpenID Connect provider), the same
+way they log in there: with the link or the 6-digit code from the login email.
+Everyone with an active membership gets in; there's no list of users.
+
+- `src/proxy.ts` checks the login on every request, so pages, API routes and
+  server actions are all covered. Someone opening a page without a login sees
+  a short login screen (`/auth`), goes on to My DWH with "Log in with My DWH"
+  and comes back to that page; anything else gets a `401`.
+- `openid-client` does the OpenID Connect part (authorization code flow with
+  PKCE, `state` and `nonce`) in `src/app/auth/login` and `src/app/auth/callback`.
+  Members are identified by `sub`, never by email address: members can change
+  their address in My DWH without verifying it.
+- Logins live in the `sessions` table. The cookie holds a random token and only
+  its SHA-256 is stored. The refresh token stays on the server: every 15 minutes
+  one request spends it to ask My DWH whether the member may still log in. An
+  ended membership, a deleted member or a revoked app logs them out right
+  there. Refresh tokens work once, so a claim on the row makes sure only one of
+  the requests a page fires at the same time refreshes. When My DWH can't be
+  reached, the login keeps working and the next request asks again.
+- A login lasts 30 days after the last check, so someone who uses the app at
+  least once a month stays logged in.
+- Logging out (the menu at the right of the header) only ends the BarBack
+  login: My DWH has no way for apps to end its own. "Log in as someone else"
+  makes My DWH ask again (`prompt=login`).
+
+### Setting it up
+
+1. Ask a staff member with the "Create apps" permission to add the app in Nova,
+   under **Configuration → Apps**: type *Server-side app*, scopes `openid` and
+   `profile`, and redirect URI `https://<domain>/auth/callback`. Add
+   `http://localhost:3000/auth/callback` to a separate app in local Nova for
+   development, never to the production one. The redirect URI follows the host
+   the app is opened on, so Vercel preview deployments can't log in unless
+   their address is registered too.
+2. Set `MY_DWH_CLIENT_ID` and `MY_DWH_CLIENT_SECRET`. The secret is shown once,
+   right after creating the app.
+
+Without them the app stays open in local development, as before; a
+production build without them refuses every request. To log in against a
+ReMember running locally, also set `MY_DWH_ISSUER` (for example
+`http://my.localhost:8000`).
 
 ## Database
 

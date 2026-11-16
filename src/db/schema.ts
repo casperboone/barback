@@ -550,6 +550,28 @@ export const attentionAcknowledgements = sqliteTable(
   }
 );
 
+// Logins through My DWH (ReMember). The cookie holds a random token; only its
+// SHA-256 is stored here. The refresh token stays on the server and is used
+// every 15 minutes to ask My DWH whether the member may still log in.
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    // The member's ID in ReMember. Never changes, unlike their email address.
+    sub: text("sub").notNull(),
+    name: text("name"),
+    refreshToken: text("refresh_token"),
+    // When My DWH last confirmed the membership.
+    checkedAt: integer("checked_at", { mode: "timestamp" }).notNull(),
+    // Set while one request refreshes, so others don't spend the same
+    // single-use refresh token.
+    refreshingAt: integer("refreshing_at", { mode: "timestamp" }),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sessions_sub_idx").on(t.sub)]
+);
+
 export type Order = typeof orders.$inferSelect;
 export type OrderLine = typeof orderLines.$inferSelect;
 export type OrderDocument = typeof orderDocuments.$inferSelect;
@@ -562,3 +584,4 @@ export type SalePriceChange = typeof salePriceChanges.$inferSelect;
 export type CompositeComponent = typeof compositeComponents.$inferSelect;
 export type AssortmentCategory = typeof assortmentCategories.$inferSelect;
 export type AssortmentItem = typeof assortmentItems.$inferSelect;
+export type Session = typeof sessions.$inferSelect;
