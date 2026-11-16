@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import * as client from "openid-client";
-import { oidcConfig, redirectUri } from "@/lib/auth/config";
+import { describeError, oidcConfig, redirectUri } from "@/lib/auth/config";
 import { decodeFlow, FLOW_COOKIE, flowCookieOptions } from "@/lib/auth/flow";
 import {
   createSession,
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     ) {
       return finish(origin, "/auth/denied");
     }
-    logger.error(`Logging in with My DWH failed: ${String(error)}`);
+    logger.error(`Logging in with My DWH failed: ${describeError(error)}`);
     return finish(origin, "/auth/error?reason=failed");
   }
 

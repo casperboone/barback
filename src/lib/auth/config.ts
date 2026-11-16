@@ -39,7 +39,10 @@ async function discover() {
     server,
     process.env.MY_DWH_CLIENT_ID!,
     undefined,
-    client.ClientSecretBasic(process.env.MY_DWH_CLIENT_SECRET!),
+    // In the body, not the Authorization header: openid-client form-encodes
+    // the header's credentials as the spec says (a "-" becomes "%2D"), and
+    // ReMember (Passport) doesn't decode them, so a UUID client ID fails.
+    client.ClientSecretPost(process.env.MY_DWH_CLIENT_SECRET!),
     {
       // A local ReMember may run on plain http.
       execute: server.protocol === "http:" ? [client.allowInsecureRequests] : [],
@@ -54,4 +57,18 @@ async function discover() {
 // the host the visitor came in on (localhost, or the deployment).
 export function redirectUri(origin: string) {
   return `${origin}/auth/callback`;
+}
+
+// openid-client's errors only say "server responded with an error"; the code
+// and description from My DWH are what tell what went wrong.
+export function describeError(error: unknown) {
+  if (error instanceof client.ResponseBodyError || error instanceof client.AuthorizationResponseError) {
+    return `${error.error}${error.error_description ? `: ${error.error_description}` : ""}`;
+  }
+  // A 401 from the token endpoint, such as for a wrong client secret.
+  if (error instanceof client.WWWAuthenticateChallengeError) {
+    const { error: code, error_description } = error.cause[0]?.parameters ?? {};
+    return `${error.status} ${code ?? "challenge"}${error_description ? `: ${error_description}` : ""}`;
+  }
+  return String(error);
 }

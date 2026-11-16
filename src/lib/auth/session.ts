@@ -4,7 +4,7 @@ import * as client from "openid-client";
 import { db } from "@/db";
 import { sessions, type Session } from "@/db/schema";
 import { logger } from "@/lib/logger";
-import { oidcConfig } from "./config";
+import { describeError, oidcConfig } from "./config";
 import { isDueForCheck, newExpiry, staleLockBefore } from "./rules";
 
 export const SESSION_COOKIE = "session";
@@ -113,7 +113,7 @@ export async function checkSession(session: Session): Promise<CheckResult> {
     }
     // My DWH being down shouldn't lock everyone out. The claim stays, so the
     // next attempt waits a little instead of every request trying at once.
-    logger.warn(`Couldn't check a session with My DWH: ${String(error)}`);
+    logger.warn(`Couldn't check a session with My DWH: ${describeError(error)}`);
     return { status: "skipped" };
   }
 
